@@ -22,27 +22,27 @@ const FIELD_MAPPINGS = {
         tutor: 'field_145',              // Links to Object_7
         headOfYear: 'field_429',         // Links to Object_18
         subjectTeacher: 'field_2191',    // Links to Object_78
-        student: 'field_166'             // Student Email/Connection
+        student: 'field_197'             // Student Email (corrected)
     },
 
     // Student Information Fields
     studentInfo: {
         name: 'field_187',               // Student Name (firstName, lastName)
-        email: 'field_166',              // Student Email
+        email: 'field_197',              // Student Email (corrected)
         group: 'field_223',              // Group (short text)
         yearGroup: 'field_144',          // Year Group (short text)
         faculty: 'field_782',            // Faculty (short text)
-        cycle: 'field_846'               // Cycle (formatted as "Cycle 1", "Cycle 2", etc.)
+        cycle: 'field_146'               // Cycle (corrected)
     },
 
     // VESPA Score Fields by Cycle
     scores: {
         cycle1: {
-            vision: 'field_171',
-            effort: 'field_172',
-            systems: 'field_173',
-            practice: 'field_174',
-            attitude: 'field_175',
+            vision: 'field_155',
+            effort: 'field_156',
+            systems: 'field_157',
+            practice: 'field_158',
+            attitude: 'field_159',
             overall: 'field_160'
         },
         cycle2: {

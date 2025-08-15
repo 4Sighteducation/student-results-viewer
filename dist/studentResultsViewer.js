@@ -21,40 +21,40 @@ const FIELD_MAPPINGS = {
         tutor: 'field_145',
         headOfYear: 'field_429',
         subjectTeacher: 'field_2191',
-        student: 'field_166'
+        student: 'field_197'  // Corrected to match student email field
     },
     studentInfo: {
         name: 'field_187',
-        email: 'field_166',
+        email: 'field_197',  // Corrected from field_166
         group: 'field_223',
         yearGroup: 'field_144',
         faculty: 'field_782',
-        cycle: 'field_846'
+        cycle: 'field_146'   // Corrected from field_846
     },
     scores: {
         cycle1: {
-            vision: 'field_171',
-            effort: 'field_172',
-            systems: 'field_173',
-            practice: 'field_174',
-            attitude: 'field_175',
-            overall: 'field_160'
+            vision: 'field_155',   // V1
+            effort: 'field_156',   // E1
+            systems: 'field_157',  // S1
+            practice: 'field_158', // P1
+            attitude: 'field_159', // A1
+            overall: 'field_160'   // O1
         },
         cycle2: {
-            vision: 'field_161',
-            effort: 'field_162',
-            systems: 'field_163',
-            practice: 'field_164',
-            attitude: 'field_165',
-            overall: 'field_166'
+            vision: 'field_161',   // V2
+            effort: 'field_162',   // E2
+            systems: 'field_163',  // S2
+            practice: 'field_164', // P2
+            attitude: 'field_165', // A2
+            overall: 'field_166'   // O2
         },
         cycle3: {
-            vision: 'field_167',
-            effort: 'field_168',
-            systems: 'field_169',
-            practice: 'field_170',
-            attitude: 'field_171',
-            overall: 'field_172'
+            vision: 'field_167',   // V3
+            effort: 'field_168',   // E3
+            systems: 'field_169',  // S3
+            practice: 'field_170', // P3
+            attitude: 'field_171', // A3
+            overall: 'field_172'   // O3
         }
     },
     staffEmails: {
@@ -194,8 +194,22 @@ window.STUDENT_RESULTS_CONFIG = { FIELD_MAPPINGS, RAG_CONFIG, THEME_CONFIG, getR
                     try {
                         const user = Knack.getUserAttributes();
                         currentUser.value = user;
-                        userRoles.value = Knack.getUserRoles();
-                        console.log('[Student Results Viewer] User:', user.email, 'Roles:', userRoles.value);
+                        // Get raw roles (object IDs)
+                        const rawRoles = Knack.getUserRoles();
+                        console.log('[Student Results Viewer] Raw roles:', rawRoles);
+                        
+                        // Map object IDs to role names
+                        const roleMapping = {
+                            'object_5': 'Staff Admin',
+                            'object_7': 'Tutor',
+                            'object_18': 'Head of Year',
+                            'object_78': 'Subject Teacher',
+                            'object_6': 'Student'
+                        };
+                        
+                        // Convert object IDs to role names
+                        userRoles.value = rawRoles.map(r => roleMapping[r]).filter(Boolean);
+                        console.log('[Student Results Viewer] User:', user.email, 'Mapped Roles:', userRoles.value);
                         return user;
                     } catch (err) {
                         console.error('[Student Results Viewer] Error fetching user info:', err);
@@ -212,6 +226,90 @@ window.STUDENT_RESULTS_CONFIG = { FIELD_MAPPINGS, RAG_CONFIG, THEME_CONFIG, getR
                         const userEmail = user.email;
 
                         const filters = [];
+                        
+                        // Get record IDs for all user roles
+                        let staffRecordIds = {};
+                        
+                        // Get Tutor record ID
+                        if (userRoles.value.includes('Tutor')) {
+                            const tutorResponse = await $.ajax({
+                                url: `https://api.knack.com/v1/objects/${FIELD_MAPPINGS.objects.tutor}/records`,
+                                type: 'GET',
+                                headers: {
+                                    'X-Knack-Application-Id': config.knackAppId,
+                                    'X-Knack-REST-API-Key': config.knackApiKey
+                                },
+                                data: {
+                                    filters: JSON.stringify({
+                                        match: 'and',
+                                        rules: [{
+                                            field: FIELD_MAPPINGS.staffEmails.tutor,
+                                            operator: 'is',
+                                            value: userEmail
+                                        }]
+                                    })
+                                }
+                            });
+                            
+                            if (tutorResponse.records.length > 0) {
+                                staffRecordIds.tutor = tutorResponse.records[0].id;
+                                console.log('[Student Results Viewer] Found tutor record ID:', staffRecordIds.tutor);
+                            }
+                        }
+                        
+                        // Get Head of Year record ID
+                        if (userRoles.value.includes('Head of Year')) {
+                            const hoyResponse = await $.ajax({
+                                url: `https://api.knack.com/v1/objects/${FIELD_MAPPINGS.objects.headOfYear}/records`,
+                                type: 'GET',
+                                headers: {
+                                    'X-Knack-Application-Id': config.knackAppId,
+                                    'X-Knack-REST-API-Key': config.knackApiKey
+                                },
+                                data: {
+                                    filters: JSON.stringify({
+                                        match: 'and',
+                                        rules: [{
+                                            field: FIELD_MAPPINGS.staffEmails.headOfYear,
+                                            operator: 'is',
+                                            value: userEmail
+                                        }]
+                                    })
+                                }
+                            });
+                            
+                            if (hoyResponse.records.length > 0) {
+                                staffRecordIds.headOfYear = hoyResponse.records[0].id;
+                                console.log('[Student Results Viewer] Found Head of Year record ID:', staffRecordIds.headOfYear);
+                            }
+                        }
+                        
+                        // Get Subject Teacher record ID
+                        if (userRoles.value.includes('Subject Teacher')) {
+                            const teacherResponse = await $.ajax({
+                                url: `https://api.knack.com/v1/objects/${FIELD_MAPPINGS.objects.subjectTeacher}/records`,
+                                type: 'GET',
+                                headers: {
+                                    'X-Knack-Application-Id': config.knackAppId,
+                                    'X-Knack-REST-API-Key': config.knackApiKey
+                                },
+                                data: {
+                                    filters: JSON.stringify({
+                                        match: 'and',
+                                        rules: [{
+                                            field: FIELD_MAPPINGS.staffEmails.subjectTeacher,
+                                            operator: 'is',
+                                            value: userEmail
+                                        }]
+                                    })
+                                }
+                            });
+                            
+                            if (teacherResponse.records.length > 0) {
+                                staffRecordIds.subjectTeacher = teacherResponse.records[0].id;
+                                console.log('[Student Results Viewer] Found Subject Teacher record ID:', staffRecordIds.subjectTeacher);
+                            }
+                        }
                         
                         if (userRoles.value.includes('Staff Admin')) {
                             const staffResponse = await $.ajax({
@@ -246,35 +344,40 @@ window.STUDENT_RESULTS_CONFIG = { FIELD_MAPPINGS, RAG_CONFIG, THEME_CONFIG, getR
                         } else {
                             const roleFilters = [];
                             
-                            if (userRoles.value.includes('Tutor')) {
+                            if (staffRecordIds.tutor) {
                                 roleFilters.push({
                                     field: FIELD_MAPPINGS.connections.tutor,
-                                    operator: 'contains',
-                                    value: userEmail
+                                    operator: 'is',
+                                    value: staffRecordIds.tutor
                                 });
                             }
                             
-                            if (userRoles.value.includes('Head of Year')) {
+                            if (staffRecordIds.headOfYear) {
                                 roleFilters.push({
                                     field: FIELD_MAPPINGS.connections.headOfYear,
-                                    operator: 'contains',
-                                    value: userEmail
+                                    operator: 'is',
+                                    value: staffRecordIds.headOfYear
                                 });
                             }
                             
-                            if (userRoles.value.includes('Subject Teacher')) {
+                            if (staffRecordIds.subjectTeacher) {
                                 roleFilters.push({
                                     field: FIELD_MAPPINGS.connections.subjectTeacher,
-                                    operator: 'contains',
-                                    value: userEmail
+                                    operator: 'is',
+                                    value: staffRecordIds.subjectTeacher
                                 });
                             }
-
+                            
                             if (roleFilters.length > 0) {
-                                filters.push({
-                                    match: 'or',
-                                    rules: roleFilters
-                                });
+                                // If user has multiple roles, use OR to get all their students
+                                if (roleFilters.length > 1) {
+                                    filters.push({
+                                        match: 'or',
+                                        rules: roleFilters
+                                    });
+                                } else {
+                                    filters.push(...roleFilters);
+                                }
                             }
                         }
 
@@ -308,46 +411,60 @@ window.STUDENT_RESULTS_CONFIG = { FIELD_MAPPINGS, RAG_CONFIG, THEME_CONFIG, getR
                 };
 
                 const processStudentData = (records) => {
-                    const studentMap = {};
+                    console.log('[Student Results Viewer] Processing', records.length, 'records');
                     
-                    records.forEach(record => {
-                        const studentId = record[FIELD_MAPPINGS.studentInfo.email] || record.id;
-                        const cycle = record[FIELD_MAPPINGS.studentInfo.cycle];
-                        const cycleNum = parseInt(cycle?.replace('Cycle ', '')) || 0;
+                    // Since each record contains ALL cycles for a student, process differently
+                    const students = records.map(record => {
+                        const student = {
+                            id: record.id,
+                            name: record[FIELD_MAPPINGS.studentInfo.name] || '',
+                            email: record[FIELD_MAPPINGS.studentInfo.email] || '',
+                            group: record[FIELD_MAPPINGS.studentInfo.group] || '',
+                            yearGroup: record[FIELD_MAPPINGS.studentInfo.yearGroup] || '',
+                            faculty: record[FIELD_MAPPINGS.studentInfo.faculty] || '',
+                            cycles: {},
+                            roles: detectStudentRoles(record)
+                        };
                         
-                        if (!studentMap[studentId]) {
-                            studentMap[studentId] = {
-                                id: studentId,
-                                name: record[FIELD_MAPPINGS.studentInfo.name],
-                                email: record[FIELD_MAPPINGS.studentInfo.email],
-                                group: record[FIELD_MAPPINGS.studentInfo.group],
-                                yearGroup: record[FIELD_MAPPINGS.studentInfo.yearGroup],
-                                faculty: record[FIELD_MAPPINGS.studentInfo.faculty],
-                                cycles: {},
-                                roles: detectStudentRoles(record)
-                            };
-                        }
+                        // Extract scores for all 3 cycles from the same record
+                        // Cycle 1
+                        student.cycles[1] = {
+                            vision: parseInt(record[FIELD_MAPPINGS.scores.cycle1.vision]) || null,
+                            effort: parseInt(record[FIELD_MAPPINGS.scores.cycle1.effort]) || null,
+                            systems: parseInt(record[FIELD_MAPPINGS.scores.cycle1.systems]) || null,
+                            practice: parseInt(record[FIELD_MAPPINGS.scores.cycle1.practice]) || null,
+                            attitude: parseInt(record[FIELD_MAPPINGS.scores.cycle1.attitude]) || null,
+                            overall: parseInt(record[FIELD_MAPPINGS.scores.cycle1.overall]) || null
+                        };
                         
-                        if (cycleNum > 0 && cycleNum <= 3) {
-                            const cycleKey = `cycle${cycleNum}`;
-                            const scoreFields = FIELD_MAPPINGS.scores[cycleKey];
-                            
-                            studentMap[studentId].cycles[cycleNum] = {
-                                vision: parseInt(record[scoreFields.vision]) || null,
-                                effort: parseInt(record[scoreFields.effort]) || null,
-                                systems: parseInt(record[scoreFields.systems]) || null,
-                                practice: parseInt(record[scoreFields.practice]) || null,
-                                attitude: parseInt(record[scoreFields.attitude]) || null,
-                                overall: parseInt(record[scoreFields.overall]) || null
-                            };
-                        }
-                    });
-                    
-                    Object.values(studentMap).forEach(student => {
+                        // Cycle 2
+                        student.cycles[2] = {
+                            vision: parseInt(record[FIELD_MAPPINGS.scores.cycle2.vision]) || null,
+                            effort: parseInt(record[FIELD_MAPPINGS.scores.cycle2.effort]) || null,
+                            systems: parseInt(record[FIELD_MAPPINGS.scores.cycle2.systems]) || null,
+                            practice: parseInt(record[FIELD_MAPPINGS.scores.cycle2.practice]) || null,
+                            attitude: parseInt(record[FIELD_MAPPINGS.scores.cycle2.attitude]) || null,
+                            overall: parseInt(record[FIELD_MAPPINGS.scores.cycle2.overall]) || null
+                        };
+                        
+                        // Cycle 3
+                        student.cycles[3] = {
+                            vision: parseInt(record[FIELD_MAPPINGS.scores.cycle3.vision]) || null,
+                            effort: parseInt(record[FIELD_MAPPINGS.scores.cycle3.effort]) || null,
+                            systems: parseInt(record[FIELD_MAPPINGS.scores.cycle3.systems]) || null,
+                            practice: parseInt(record[FIELD_MAPPINGS.scores.cycle3.practice]) || null,
+                            attitude: parseInt(record[FIELD_MAPPINGS.scores.cycle3.attitude]) || null,
+                            overall: parseInt(record[FIELD_MAPPINGS.scores.cycle3.overall]) || null
+                        };
+                        
+                        // Calculate trends
                         student.trends = calculateTrends(student.cycles);
+                        
+                        return student;
                     });
                     
-                    return Object.values(studentMap);
+                    console.log('[Student Results Viewer] Processed students:', students.length);
+                    return students;
                 };
 
                 const detectStudentRoles = (record) => {
