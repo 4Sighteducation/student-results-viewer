@@ -1,0 +1,28 @@
+{
+  "name": "student-results-viewer",
+  "version": "1.0.0",
+  "description": "Vue.js-based student VESPA results viewer for Knack",
+  "main": "dist/studentResultsViewer.js",
+  "scripts": {
+    "build": "node build.js",
+    "test": "echo \"No tests configured\"",
+    "deploy": "git add . && git commit -m 'Deploy v1.0.0' && git push origin main"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/4Sighteducation/student-results-viewer.git"
+  },
+  "keywords": [
+    "vue",
+    "knack",
+    "vespa",
+    "education",
+    "student-results"
+  ],
+  "author": "4Sight Education Ltd",
+  "license": "MIT",
+  "devDependencies": {
+    "terser": "^5.16.0",
+    "clean-css": "^5.3.0"
+  }
+}
