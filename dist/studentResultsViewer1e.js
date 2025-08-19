@@ -1,6 +1,6 @@
 /**
- * Student Results Viewer v2.0.2
- * Production build with HTML parsing fixes
+ * Student Results Viewer v2.0.3
+ * Production build with jQuery Promise fix
  * Copyright 2025 4Sight Education Ltd
  * 
  * FIXES APPLIED:
@@ -9,6 +9,7 @@
  * - Handle many-to-many staff connections (arrays)
  * - Enhanced role detection from field_73
  * - Parse HTML responses from Knack API
+ * - Fixed jQuery Promise handling (.fail instead of .catch)
  */
 
 // Debug mode flag - SET TO TRUE FOR TROUBLESHOOTING
@@ -148,7 +149,7 @@ window.STUDENT_RESULTS_CONFIG = { FIELD_MAPPINGS, RAG_CONFIG, THEME_CONFIG, getR
     }
 
     window.initializeStudentResultsViewer = function() {
-        console.log('[Student Results Viewer] Initializing v2.0.2...');
+        console.log('[Student Results Viewer] Initializing v2.0.3...');
 
         waitForConfig((config) => {
             if (typeof Vue === 'undefined') {
@@ -411,30 +412,34 @@ window.STUDENT_RESULTS_CONFIG = { FIELD_MAPPINGS, RAG_CONFIG, THEME_CONFIG, getR
                             if (userRoles.value.includes('Tutor')) {
                                 debugLog('Fetching Tutor record...');
                                 rolePromises.push(
-                                    $.ajax({
-                                        url: `https://api.knack.com/v1/objects/${FIELD_MAPPINGS.objects.tutor}/records`,
-                                        type: 'GET',
-                                        headers: {
-                                            'X-Knack-Application-Id': config.knackAppId,
-                                            'X-Knack-REST-API-Key': config.knackApiKey
-                                        },
-                                        data: {
-                                            filters: JSON.stringify({
-                                                match: 'and',
-                                                rules: [{
-                                                    field: FIELD_MAPPINGS.staffEmails.tutor,
-                                                    operator: 'is',
-                                                    value: userEmail
-                                                }]
-                                            })
-                                        }
-                                    }).then(response => {
-                                        if (response.records.length > 0) {
-                                            staffRecordIds.tutor = response.records[0].id;
-                                            console.log('[Student Results Viewer] Found tutor record ID:', staffRecordIds.tutor);
-                                        }
-                                    }).catch(err => {
-                                        console.error('[Student Results Viewer] Error fetching Tutor record:', err);
+                                    new Promise((resolve) => {
+                                        $.ajax({
+                                            url: `https://api.knack.com/v1/objects/${FIELD_MAPPINGS.objects.tutor}/records`,
+                                            type: 'GET',
+                                            headers: {
+                                                'X-Knack-Application-Id': config.knackAppId,
+                                                'X-Knack-REST-API-Key': config.knackApiKey
+                                            },
+                                            data: {
+                                                filters: JSON.stringify({
+                                                    match: 'and',
+                                                    rules: [{
+                                                        field: FIELD_MAPPINGS.staffEmails.tutor,
+                                                        operator: 'is',
+                                                        value: userEmail
+                                                    }]
+                                                })
+                                            }
+                                        }).done(response => {
+                                            if (response.records.length > 0) {
+                                                staffRecordIds.tutor = response.records[0].id;
+                                                console.log('[Student Results Viewer] Found tutor record ID:', staffRecordIds.tutor);
+                                            }
+                                            resolve();
+                                        }).fail(err => {
+                                            console.error('[Student Results Viewer] Error fetching Tutor record:', err);
+                                            resolve();
+                                        });
                                     })
                                 );
                             }
@@ -443,30 +448,34 @@ window.STUDENT_RESULTS_CONFIG = { FIELD_MAPPINGS, RAG_CONFIG, THEME_CONFIG, getR
                             if (userRoles.value.includes('Head of Year')) {
                                 debugLog('Fetching Head of Year record...');
                                 rolePromises.push(
-                                    $.ajax({
-                                        url: `https://api.knack.com/v1/objects/${FIELD_MAPPINGS.objects.headOfYear}/records`,
-                                        type: 'GET',
-                                        headers: {
-                                            'X-Knack-Application-Id': config.knackAppId,
-                                            'X-Knack-REST-API-Key': config.knackApiKey
-                                        },
-                                        data: {
-                                            filters: JSON.stringify({
-                                                match: 'and',
-                                                rules: [{
-                                                    field: FIELD_MAPPINGS.staffEmails.headOfYear,
-                                                    operator: 'is',
-                                                    value: userEmail
-                                                }]
-                                            })
-                                        }
-                                    }).then(response => {
-                                        if (response.records.length > 0) {
-                                            staffRecordIds.headOfYear = response.records[0].id;
-                                            console.log('[Student Results Viewer] Found Head of Year record ID:', staffRecordIds.headOfYear);
-                                        }
-                                    }).catch(err => {
-                                        console.error('[Student Results Viewer] Error fetching Head of Year record:', err);
+                                    new Promise((resolve) => {
+                                        $.ajax({
+                                            url: `https://api.knack.com/v1/objects/${FIELD_MAPPINGS.objects.headOfYear}/records`,
+                                            type: 'GET',
+                                            headers: {
+                                                'X-Knack-Application-Id': config.knackAppId,
+                                                'X-Knack-REST-API-Key': config.knackApiKey
+                                            },
+                                            data: {
+                                                filters: JSON.stringify({
+                                                    match: 'and',
+                                                    rules: [{
+                                                        field: FIELD_MAPPINGS.staffEmails.headOfYear,
+                                                        operator: 'is',
+                                                        value: userEmail
+                                                    }]
+                                                })
+                                            }
+                                        }).done(response => {
+                                            if (response.records.length > 0) {
+                                                staffRecordIds.headOfYear = response.records[0].id;
+                                                console.log('[Student Results Viewer] Found Head of Year record ID:', staffRecordIds.headOfYear);
+                                            }
+                                            resolve();
+                                        }).fail(err => {
+                                            console.error('[Student Results Viewer] Error fetching Head of Year record:', err);
+                                            resolve();
+                                        });
                                     })
                                 );
                             }
@@ -475,30 +484,34 @@ window.STUDENT_RESULTS_CONFIG = { FIELD_MAPPINGS, RAG_CONFIG, THEME_CONFIG, getR
                             if (userRoles.value.includes('Subject Teacher')) {
                                 debugLog('Fetching Subject Teacher record...');
                                 rolePromises.push(
-                                    $.ajax({
-                                        url: `https://api.knack.com/v1/objects/${FIELD_MAPPINGS.objects.subjectTeacher}/records`,
-                                        type: 'GET',
-                                        headers: {
-                                            'X-Knack-Application-Id': config.knackAppId,
-                                            'X-Knack-REST-API-Key': config.knackApiKey
-                                        },
-                                        data: {
-                                            filters: JSON.stringify({
-                                                match: 'and',
-                                                rules: [{
-                                                    field: FIELD_MAPPINGS.staffEmails.subjectTeacher,
-                                                    operator: 'is',
-                                                    value: userEmail
-                                                }]
-                                            })
-                                        }
-                                    }).then(response => {
-                                        if (response.records.length > 0) {
-                                            staffRecordIds.subjectTeacher = response.records[0].id;
-                                            console.log('[Student Results Viewer] Found Subject Teacher record ID:', staffRecordIds.subjectTeacher);
-                                        }
-                                    }).catch(err => {
-                                        console.error('[Student Results Viewer] Error fetching Subject Teacher record:', err);
+                                    new Promise((resolve) => {
+                                        $.ajax({
+                                            url: `https://api.knack.com/v1/objects/${FIELD_MAPPINGS.objects.subjectTeacher}/records`,
+                                            type: 'GET',
+                                            headers: {
+                                                'X-Knack-Application-Id': config.knackAppId,
+                                                'X-Knack-REST-API-Key': config.knackApiKey
+                                            },
+                                            data: {
+                                                filters: JSON.stringify({
+                                                    match: 'and',
+                                                    rules: [{
+                                                        field: FIELD_MAPPINGS.staffEmails.subjectTeacher,
+                                                        operator: 'is',
+                                                        value: userEmail
+                                                    }]
+                                                })
+                                            }
+                                        }).done(response => {
+                                            if (response.records.length > 0) {
+                                                staffRecordIds.subjectTeacher = response.records[0].id;
+                                                console.log('[Student Results Viewer] Found Subject Teacher record ID:', staffRecordIds.subjectTeacher);
+                                            }
+                                            resolve();
+                                        }).fail(err => {
+                                            console.error('[Student Results Viewer] Error fetching Subject Teacher record:', err);
+                                            resolve();
+                                        });
                                     })
                                 );
                             }
@@ -902,7 +915,8 @@ window.STUDENT_RESULTS_CONFIG = { FIELD_MAPPINGS, RAG_CONFIG, THEME_CONFIG, getR
                     toggleGroupAnalytics,
                     getRagRating,
                     RAG_CONFIG,
-                    THEME_CONFIG
+                    THEME_CONFIG,
+                    fetchStudentResults
                 };
             },
             
