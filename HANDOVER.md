@@ -5,6 +5,7 @@
 **Developer**: 4Sight Education Ltd  
 **Application**: Vue.js-based VESPA Student Results Viewer for Knack  
 **Repository**: https://github.com/4Sighteducation/student-results-viewer
+**Current Version**: v2.0.2 (studentResultsViewer1c.js)
 
 ## Project Aims
 Create a comprehensive, role-based student results viewing system that:
@@ -22,7 +23,7 @@ Create a comprehensive, role-based student results viewing system that:
 - **View**: `view_3214` (Rich Text view)
 - **Integration Method**: Knack App Loader (`WorkingAppLoader1.0_12_08_25.js`)
 - **Files**: 
-  - Production: `studentResultsViewer1a.js` and `studentResultsViewer1a.css`
+  - Production: `studentResultsViewer1c.js` and `studentResultsViewer1c.css`
   - CDN: `https://cdn.jsdelivr.net/gh/4Sighteducation/student-results-viewer@main/dist/`
 
 ### Key Knack Objects & Fields
@@ -96,6 +97,12 @@ Cycle 3: field_167-172 (V, E, S, P, A, Overall)
    - ALL users now get establishment filter applied first (critical with 20K+ records)
    - Staff Admin sees all establishment students
    - Other roles see filtered subset within their establishment
+
+3. **Fixed HTML Parsing Issues (v2.0.2)**
+   - Added parseKnackHTML function to extract data from HTML responses
+   - Properly extracts role names from HTML spans
+   - Correctly extracts establishment ID from HTML class attributes
+   - Handles both raw and formatted field data
 
 2. **Large Dataset Handling**
    - API pagination works but needs optimization

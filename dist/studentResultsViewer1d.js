@@ -1,6 +1,6 @@
 /**
- * Student Results Viewer v2.0.1
- * Production build with corrected data structure
+ * Student Results Viewer v2.0.2
+ * Production build with HTML parsing fixes
  * Copyright 2025 4Sight Education Ltd
  * 
  * FIXES APPLIED:
@@ -8,6 +8,7 @@
  * - Fixed establishment filtering via Object_3 field_122
  * - Handle many-to-many staff connections (arrays)
  * - Enhanced role detection from field_73
+ * - Parse HTML responses from Knack API
  */
 
 // Debug mode flag - SET TO TRUE FOR TROUBLESHOOTING
@@ -147,7 +148,7 @@ window.STUDENT_RESULTS_CONFIG = { FIELD_MAPPINGS, RAG_CONFIG, THEME_CONFIG, getR
     }
 
     window.initializeStudentResultsViewer = function() {
-        console.log('[Student Results Viewer] Initializing v2.0.1...');
+        console.log('[Student Results Viewer] Initializing v2.0.2...');
 
         waitForConfig((config) => {
             if (typeof Vue === 'undefined') {
@@ -166,6 +167,41 @@ window.STUDENT_RESULTS_CONFIG = { FIELD_MAPPINGS, RAG_CONFIG, THEME_CONFIG, getR
         
         const { FIELD_MAPPINGS, RAG_CONFIG, THEME_CONFIG, getRagRating } = window.STUDENT_RESULTS_CONFIG || {};
         const { createApp, ref, computed, onMounted, watch } = Vue;
+
+        // Helper function to parse HTML from Knack fields
+        function parseKnackHTML(htmlString) {
+            if (!htmlString) return null;
+            
+            // If it's already not HTML, return as is
+            if (typeof htmlString !== 'string' || !htmlString.includes('<')) {
+                return htmlString;
+            }
+            
+            // Parse establishment ID from class attribute
+            const establishmentMatch = htmlString.match(/class="([^"]*?)"/);
+            if (establishmentMatch && establishmentMatch[1]) {
+                // Return the ID from the class (first class if multiple)
+                const classValue = establishmentMatch[1].split(' ')[0];
+                if (classValue && classValue.length > 20) { // Knack IDs are typically 24 chars
+                    return classValue;
+                }
+            }
+            
+            // Parse text content for roles
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = htmlString;
+            const textContent = tempDiv.textContent || tempDiv.innerText || '';
+            
+            // If it contains multiple spans (roles), extract them
+            if (htmlString.includes('</span>') && htmlString.includes('<br')) {
+                const spans = tempDiv.querySelectorAll('span');
+                if (spans.length > 0) {
+                    return Array.from(spans).map(span => span.textContent.trim());
+                }
+            }
+            
+            return textContent.trim();
+        }
 
         const StudentResultsApp = {
             setup() {
@@ -247,9 +283,19 @@ window.STUDENT_RESULTS_CONFIG = { FIELD_MAPPINGS, RAG_CONFIG, THEME_CONFIG, getR
                             const rolesField = profile[FIELD_MAPPINGS.userProfile.roles];
                             debugLog('Roles field (field_73):', rolesField);
                             
-                            // Parse roles - could be array or string
+                            // Parse roles - could be HTML, array or string
                             let rolesList = [];
-                            if (Array.isArray(rolesField)) {
+                            
+                            // Parse HTML if needed
+                            const parsedRoles = parseKnackHTML(rolesField);
+                            debugLog('Parsed roles:', parsedRoles);
+                            
+                            if (Array.isArray(parsedRoles)) {
+                                rolesList = parsedRoles;
+                            } else if (typeof parsedRoles === 'string') {
+                                // Split by comma if comma-separated
+                                rolesList = parsedRoles.split(',').map(r => r.trim());
+                            } else if (Array.isArray(rolesField)) {
                                 rolesList = rolesField;
                             } else if (typeof rolesField === 'string') {
                                 rolesList = rolesField.split(',').map(r => r.trim());
@@ -266,8 +312,15 @@ window.STUDENT_RESULTS_CONFIG = { FIELD_MAPPINGS, RAG_CONFIG, THEME_CONFIG, getR
                             
                             userRoles.value = rolesList.filter(r => roleMapping[r]).map(r => roleMapping[r]);
                             
-                            // Store establishment connection for later use
-                            user.establishmentConnection = profile[FIELD_MAPPINGS.userProfile.establishment];
+                            // Parse establishment connection
+                            const establishmentField = profile[FIELD_MAPPINGS.userProfile.establishment];
+                            debugLog('Raw establishment field:', establishmentField);
+                            
+                            // Parse the establishment ID from HTML if needed
+                            const parsedEstablishment = parseKnackHTML(establishmentField);
+                            debugLog('Parsed establishment:', parsedEstablishment);
+                            
+                            user.establishmentConnection = parsedEstablishment;
                             user.profileRecord = profile;
                             
                             debugLog('Mapped roles:', userRoles.value);
@@ -304,13 +357,14 @@ window.STUDENT_RESULTS_CONFIG = { FIELD_MAPPINGS, RAG_CONFIG, THEME_CONFIG, getR
                         if (user.establishmentConnection) {
                             debugLog('Establishment connection from profile:', user.establishmentConnection);
                             
-                            // Parse establishment ID
-                            if (typeof user.establishmentConnection === 'object' && user.establishmentConnection.id) {
-                                establishmentId = user.establishmentConnection.id;
-                            } else if (Array.isArray(user.establishmentConnection) && user.establishmentConnection.length > 0) {
-                                establishmentId = user.establishmentConnection[0].id || user.establishmentConnection[0];
-                            } else if (typeof user.establishmentConnection === 'string') {
-                                establishmentId = user.establishmentConnection;
+                            // The establishment ID should already be parsed
+                            establishmentId = user.establishmentConnection;
+                            
+                            // Additional validation
+                            if (typeof establishmentId === 'object' && establishmentId.id) {
+                                establishmentId = establishmentId.id;
+                            } else if (Array.isArray(establishmentId) && establishmentId.length > 0) {
+                                establishmentId = establishmentId[0].id || establishmentId[0];
                             }
                             
                             // Try raw field as backup
