@@ -8,6 +8,7 @@ const FIELD_MAPPINGS = {
     objects: {
         vespaResults: 'object_10',
         establishment: 'object_2',
+        userProfile: 'object_3',      // User profile with roles
         student: 'object_6',
         staffAdmin: 'object_5',
         tutor: 'object_7',
@@ -23,6 +24,13 @@ const FIELD_MAPPINGS = {
         headOfYear: 'field_429',         // Links to Object_18
         subjectTeacher: 'field_2191',    // Links to Object_78
         student: 'field_197'             // Student Email (corrected)
+    },
+
+    // User Profile Fields in Object_3
+    userProfile: {
+        email: 'field_70',              // Email field in Object_3
+        roles: 'field_73',              // Array of roles in Object_3
+        establishment: 'field_122'      // Connected establishment in Object_3
     },
 
     // Student Information Fields

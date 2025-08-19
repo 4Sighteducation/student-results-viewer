@@ -40,6 +40,7 @@ const FIELD_MAPPINGS = {
         subjectTeacher: 'field_2191',  // Array in Object_10
     },
     userProfile: {
+        email: 'field_70',              // Email field in Object_3
         roles: 'field_73',              // Array of roles in Object_3
         establishment: 'field_122'      // Connected establishment in Object_3
     },
@@ -230,7 +231,7 @@ window.STUDENT_RESULTS_CONFIG = { FIELD_MAPPINGS, RAG_CONFIG, THEME_CONFIG, getR
                                 filters: JSON.stringify({
                                     match: 'and',
                                     rules: [{
-                                        field: 'field_86',  // Email field in Object_3
+                                        field: FIELD_MAPPINGS.userProfile.email,  // Use correct email field (field_70)
                                         operator: 'is',
                                         value: userEmail
                                     }]
@@ -296,51 +297,59 @@ window.STUDENT_RESULTS_CONFIG = { FIELD_MAPPINGS, RAG_CONFIG, THEME_CONFIG, getR
                         // Get record IDs for all user roles
                         let staffRecordIds = {};
                         
-                        // Check if Staff Admin and get establishment
-                        if (userRoles.value.includes('Staff Admin')) {
-                            console.log('[Student Results Viewer] User is Staff Admin, getting establishment from profile...');
+                        // CRITICAL: Get establishment for ALL users (not just Staff Admin)
+                        // This is essential with 20K+ records in Object_10
+                        console.log('[Student Results Viewer] Getting establishment from user profile...');
+                        
+                        if (user.establishmentConnection) {
+                            debugLog('Establishment connection from profile:', user.establishmentConnection);
                             
-                            // Get establishment from user profile (Object_3)
-                            if (user.establishmentConnection) {
-                                debugLog('Establishment connection from profile:', user.establishmentConnection);
-                                
-                                // Parse establishment ID
-                                if (typeof user.establishmentConnection === 'object' && user.establishmentConnection.id) {
-                                    establishmentId = user.establishmentConnection.id;
-                                } else if (Array.isArray(user.establishmentConnection) && user.establishmentConnection.length > 0) {
-                                    establishmentId = user.establishmentConnection[0].id || user.establishmentConnection[0];
-                                } else if (typeof user.establishmentConnection === 'string') {
-                                    establishmentId = user.establishmentConnection;
-                                }
-                                
-                                // Try raw field as backup
-                                if (!establishmentId && user.profileRecord) {
-                                    const rawField = user.profileRecord[FIELD_MAPPINGS.userProfile.establishment + '_raw'];
-                                    debugLog('Raw establishment field:', rawField);
-                                    if (rawField) {
-                                        if (Array.isArray(rawField) && rawField.length > 0) {
-                                            establishmentId = rawField[0].id || rawField[0];
-                                        } else if (rawField.id) {
-                                            establishmentId = rawField.id;
-                                        }
+                            // Parse establishment ID
+                            if (typeof user.establishmentConnection === 'object' && user.establishmentConnection.id) {
+                                establishmentId = user.establishmentConnection.id;
+                            } else if (Array.isArray(user.establishmentConnection) && user.establishmentConnection.length > 0) {
+                                establishmentId = user.establishmentConnection[0].id || user.establishmentConnection[0];
+                            } else if (typeof user.establishmentConnection === 'string') {
+                                establishmentId = user.establishmentConnection;
+                            }
+                            
+                            // Try raw field as backup
+                            if (!establishmentId && user.profileRecord) {
+                                const rawField = user.profileRecord[FIELD_MAPPINGS.userProfile.establishment + '_raw'];
+                                debugLog('Raw establishment field:', rawField);
+                                if (rawField) {
+                                    if (Array.isArray(rawField) && rawField.length > 0) {
+                                        establishmentId = rawField[0].id || rawField[0];
+                                    } else if (rawField.id) {
+                                        establishmentId = rawField.id;
                                     }
                                 }
-                                
-                                if (establishmentId) {
-                                    console.log('[Student Results Viewer] Found establishment ID:', establishmentId);
-                                    filters.push({
-                                        field: FIELD_MAPPINGS.connections.establishment,
-                                        operator: 'is',
-                                        value: establishmentId
-                                    });
-                                } else {
-                                    console.warn('[Student Results Viewer] No establishment found for Staff Admin');
-                                }
                             }
+                            
+                            if (establishmentId) {
+                                console.log('[Student Results Viewer] Found establishment ID:', establishmentId);
+                                // Apply establishment filter for ALL users
+                                filters.push({
+                                    field: FIELD_MAPPINGS.connections.establishment,
+                                    operator: 'is',
+                                    value: establishmentId
+                                });
+                            } else {
+                                console.error('[Student Results Viewer] CRITICAL: No establishment found for user - cannot filter 20K+ records!');
+                                error.value = 'Unable to determine your establishment. Please contact support.';
+                                loading.value = false;
+                                return;
+                            }
+                        } else {
+                            console.error('[Student Results Viewer] CRITICAL: No establishment connection in user profile');
+                            error.value = 'Unable to determine your establishment. Please contact support.';
+                            loading.value = false;
+                            return;
                         }
                         
-                        // For non-Staff Admin roles or as additional filters
-                        if (!establishmentId || userRoles.value.some(r => r !== 'Staff Admin')) {
+                        // Now add role-specific filters ON TOP of establishment filter
+                        // Skip this for Staff Admin as they see all establishment students
+                        if (!userRoles.value.includes('Staff Admin') || userRoles.value.length > 1) {
                             // Get role-specific record IDs
                             const rolePromises = [];
                             
@@ -472,23 +481,21 @@ window.STUDENT_RESULTS_CONFIG = { FIELD_MAPPINGS, RAG_CONFIG, THEME_CONFIG, getR
                             }
                             
                             if (roleFilters.length > 0) {
-                                // If Staff Admin with establishment, add role filters as OR within establishment
-                                if (establishmentId) {
+                                // Add role filters as additional constraints
+                                // The establishment filter is already in place, now add role filters
+                                // Multiple role filters should be OR'd together (user can be Tutor OR Head of Year)
+                                if (roleFilters.length > 1) {
                                     filters.push({
                                         match: 'or',
                                         rules: roleFilters
                                     });
                                 } else {
-                                    // Non-Staff Admin: use OR to get all their students
-                                    if (roleFilters.length > 1) {
-                                        filters = [{
-                                            match: 'or',
-                                            rules: roleFilters
-                                        }];
-                                    } else {
-                                        filters = roleFilters;
-                                    }
+                                    // Single role filter - add directly
+                                    filters.push(roleFilters[0]);
                                 }
+                            } else if (!userRoles.value.includes('Staff Admin')) {
+                                // Non-Staff Admin user with no matching role records found
+                                console.warn('[Student Results Viewer] No matching staff records found for user roles');
                             }
                         }
 
