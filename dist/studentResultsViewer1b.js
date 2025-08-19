@@ -1,60 +1,80 @@
 /**
- * Student Results Viewer v1.0.0
- * Production build - Combined JavaScript
- * Copyright 2024 4Sight Education Ltd
+ * Student Results Viewer v2.0.1
+ * Production build with corrected data structure
+ * Copyright 2025 4Sight Education Ltd
+ * 
+ * FIXES APPLIED:
+ * - Corrected user profile location (Object_3)
+ * - Fixed establishment filtering via Object_3 field_122
+ * - Handle many-to-many staff connections (arrays)
+ * - Enhanced role detection from field_73
  */
+
+// Debug mode flag - SET TO TRUE FOR TROUBLESHOOTING
+const DEBUG_MODE = true;
+
+// Enhanced logging function
+function debugLog(...args) {
+    if (DEBUG_MODE) {
+        console.log('[Student Results Viewer DEBUG]', ...args);
+    }
+}
 
 // Field Mappings Configuration (embedded)
 const FIELD_MAPPINGS = {
     objects: {
         vespaResults: 'object_10',
         establishment: 'object_2',
-        student: 'object_6',
+        userProfile: 'object_3',      // User profile with roles
         staffAdmin: 'object_5',
+        student: 'object_6',
         tutor: 'object_7',
         headOfYear: 'object_18',
         subjectTeacher: 'object_78'
     },
     connections: {
-        establishment: 'field_133',
-        staffAdmin: 'field_439',
-        tutor: 'field_145',
-        headOfYear: 'field_429',
-        subjectTeacher: 'field_2191',
-        student: 'field_197'  // Corrected to match student email field
+        establishment: 'field_133',     // In Object_10
+        staffAdmin: 'field_439',        // Array in Object_10
+        tutor: 'field_145',            // Array in Object_10
+        headOfYear: 'field_429',       // Array in Object_10
+        subjectTeacher: 'field_2191',  // Array in Object_10
+    },
+    userProfile: {
+        roles: 'field_73',              // Array of roles in Object_3
+        establishment: 'field_122'      // Connected establishment in Object_3
     },
     studentInfo: {
         name: 'field_187',
-        email: 'field_197',  // Corrected from field_166
+        email: 'field_197',
         group: 'field_223',
         yearGroup: 'field_144',
         faculty: 'field_782',
-        cycle: 'field_146'   // Corrected from field_846
+        cycle: 'field_146'
     },
     scores: {
         cycle1: {
-            vision: 'field_155',   // V1
-            effort: 'field_156',   // E1
-            systems: 'field_157',  // S1
-            practice: 'field_158', // P1
-            attitude: 'field_159', // A1
-            overall: 'field_160'   // O1
+            vision: 'field_155',
+            effort: 'field_156',
+            systems: 'field_157',
+            practice: 'field_158',
+            attitude: 'field_159',
+            overall: 'field_160'
         },
         cycle2: {
-            vision: 'field_161',   // V2
-            effort: 'field_162',   // E2
-            systems: 'field_163',  // S2
-            practice: 'field_164', // P2
-            attitude: 'field_165', // A2
-            overall: 'field_166'   // O2
+            vision: 'field_161',
+            effort: 'field_162',
+            systems: 'field_163',
+            practice: 'field_164',
+            attitude: 'field_165',
+            overall: 'field_166'
         },
         cycle3: {
-            vision: 'field_167',   // V3
-            effort: 'field_168',   // E3
-            systems: 'field_169',  // S3
-            practice: 'field_170', // P3
-            attitude: 'field_171', // A3
-            overall: 'field_172'   // O3
+            vision: 'field_167',
+            effort: 'field_168',
+            systems: 'field_169',
+            practice: 'field_170',
+            attitude: 'field_171',
+            overall: 'field_172'
         }
     },
     staffEmails: {
@@ -126,7 +146,7 @@ window.STUDENT_RESULTS_CONFIG = { FIELD_MAPPINGS, RAG_CONFIG, THEME_CONFIG, getR
     }
 
     window.initializeStudentResultsViewer = function() {
-        console.log('[Student Results Viewer] Initializing...');
+        console.log('[Student Results Viewer] Initializing v2.0.1...');
 
         waitForConfig((config) => {
             if (typeof Vue === 'undefined') {
@@ -194,23 +214,68 @@ window.STUDENT_RESULTS_CONFIG = { FIELD_MAPPINGS, RAG_CONFIG, THEME_CONFIG, getR
                     try {
                         const user = Knack.getUserAttributes();
                         currentUser.value = user;
-                        // Get raw roles (object IDs)
-                        const rawRoles = Knack.getUserRoles();
-                        console.log('[Student Results Viewer] Raw roles:', rawRoles);
                         
-                        // Map object IDs to role names
-                        const roleMapping = {
-                            'object_5': 'Staff Admin',
-                            'object_7': 'Tutor',
-                            'object_18': 'Head of Year',
-                            'object_78': 'Subject Teacher',
-                            'object_6': 'Student'
-                        };
+                        // Get user's profile from Object_3 to get roles
+                        const userEmail = user.email;
+                        debugLog('Fetching user profile for:', userEmail);
                         
-                        // Convert object IDs to role names
-                        userRoles.value = rawRoles.map(r => roleMapping[r]).filter(Boolean);
-                        console.log('[Student Results Viewer] User:', user.email, 'Mapped Roles:', userRoles.value);
+                        const profileResponse = await $.ajax({
+                            url: `https://api.knack.com/v1/objects/${FIELD_MAPPINGS.objects.userProfile}/records`,
+                            type: 'GET',
+                            headers: {
+                                'X-Knack-Application-Id': config.knackAppId,
+                                'X-Knack-REST-API-Key': config.knackApiKey
+                            },
+                            data: {
+                                filters: JSON.stringify({
+                                    match: 'and',
+                                    rules: [{
+                                        field: 'field_86',  // Email field in Object_3
+                                        operator: 'is',
+                                        value: userEmail
+                                    }]
+                                })
+                            }
+                        });
+                        
+                        if (profileResponse.records.length > 0) {
+                            const profile = profileResponse.records[0];
+                            debugLog('User profile found:', profile);
+                            
+                            // Get roles from field_73
+                            const rolesField = profile[FIELD_MAPPINGS.userProfile.roles];
+                            debugLog('Roles field (field_73):', rolesField);
+                            
+                            // Parse roles - could be array or string
+                            let rolesList = [];
+                            if (Array.isArray(rolesField)) {
+                                rolesList = rolesField;
+                            } else if (typeof rolesField === 'string') {
+                                rolesList = rolesField.split(',').map(r => r.trim());
+                            }
+                            
+                            // Map role values to role names
+                            const roleMapping = {
+                                'Staff Admin': 'Staff Admin',
+                                'Tutor': 'Tutor',
+                                'Head of Year': 'Head of Year',
+                                'Subject Teacher': 'Subject Teacher',
+                                'Student': 'Student'
+                            };
+                            
+                            userRoles.value = rolesList.filter(r => roleMapping[r]).map(r => roleMapping[r]);
+                            
+                            // Store establishment connection for later use
+                            user.establishmentConnection = profile[FIELD_MAPPINGS.userProfile.establishment];
+                            user.profileRecord = profile;
+                            
+                            debugLog('Mapped roles:', userRoles.value);
+                            debugLog('Establishment connection:', user.establishmentConnection);
+                        }
+                        
+                        console.log('[Student Results Viewer] User:', user.email, 'Roles:', userRoles.value);
                         return user;
+                        
                     } catch (err) {
                         console.error('[Student Results Viewer] Error fetching user info:', err);
                         throw err;
@@ -225,129 +290,167 @@ window.STUDENT_RESULTS_CONFIG = { FIELD_MAPPINGS, RAG_CONFIG, THEME_CONFIG, getR
                         const user = await fetchUserInfo();
                         const userEmail = user.email;
 
-                        const filters = [];
+                        let filters = [];
+                        let establishmentId = null;
                         
                         // Get record IDs for all user roles
                         let staffRecordIds = {};
                         
-                        // Get Tutor record ID
-                        if (userRoles.value.includes('Tutor')) {
-                            const tutorResponse = await $.ajax({
-                                url: `https://api.knack.com/v1/objects/${FIELD_MAPPINGS.objects.tutor}/records`,
-                                type: 'GET',
-                                headers: {
-                                    'X-Knack-Application-Id': config.knackAppId,
-                                    'X-Knack-REST-API-Key': config.knackApiKey
-                                },
-                                data: {
-                                    filters: JSON.stringify({
-                                        match: 'and',
-                                        rules: [{
-                                            field: FIELD_MAPPINGS.staffEmails.tutor,
-                                            operator: 'is',
-                                            value: userEmail
-                                        }]
-                                    })
-                                }
-                            });
-                            
-                            if (tutorResponse.records.length > 0) {
-                                staffRecordIds.tutor = tutorResponse.records[0].id;
-                                console.log('[Student Results Viewer] Found tutor record ID:', staffRecordIds.tutor);
-                            }
-                        }
-                        
-                        // Get Head of Year record ID
-                        if (userRoles.value.includes('Head of Year')) {
-                            const hoyResponse = await $.ajax({
-                                url: `https://api.knack.com/v1/objects/${FIELD_MAPPINGS.objects.headOfYear}/records`,
-                                type: 'GET',
-                                headers: {
-                                    'X-Knack-Application-Id': config.knackAppId,
-                                    'X-Knack-REST-API-Key': config.knackApiKey
-                                },
-                                data: {
-                                    filters: JSON.stringify({
-                                        match: 'and',
-                                        rules: [{
-                                            field: FIELD_MAPPINGS.staffEmails.headOfYear,
-                                            operator: 'is',
-                                            value: userEmail
-                                        }]
-                                    })
-                                }
-                            });
-                            
-                            if (hoyResponse.records.length > 0) {
-                                staffRecordIds.headOfYear = hoyResponse.records[0].id;
-                                console.log('[Student Results Viewer] Found Head of Year record ID:', staffRecordIds.headOfYear);
-                            }
-                        }
-                        
-                        // Get Subject Teacher record ID
-                        if (userRoles.value.includes('Subject Teacher')) {
-                            const teacherResponse = await $.ajax({
-                                url: `https://api.knack.com/v1/objects/${FIELD_MAPPINGS.objects.subjectTeacher}/records`,
-                                type: 'GET',
-                                headers: {
-                                    'X-Knack-Application-Id': config.knackAppId,
-                                    'X-Knack-REST-API-Key': config.knackApiKey
-                                },
-                                data: {
-                                    filters: JSON.stringify({
-                                        match: 'and',
-                                        rules: [{
-                                            field: FIELD_MAPPINGS.staffEmails.subjectTeacher,
-                                            operator: 'is',
-                                            value: userEmail
-                                        }]
-                                    })
-                                }
-                            });
-                            
-                            if (teacherResponse.records.length > 0) {
-                                staffRecordIds.subjectTeacher = teacherResponse.records[0].id;
-                                console.log('[Student Results Viewer] Found Subject Teacher record ID:', staffRecordIds.subjectTeacher);
-                            }
-                        }
-                        
+                        // Check if Staff Admin and get establishment
                         if (userRoles.value.includes('Staff Admin')) {
-                            const staffResponse = await $.ajax({
-                                url: `https://api.knack.com/v1/objects/${FIELD_MAPPINGS.objects.staffAdmin}/records`,
-                                type: 'GET',
-                                headers: {
-                                    'X-Knack-Application-Id': config.knackAppId,
-                                    'X-Knack-REST-API-Key': config.knackApiKey
-                                },
-                                data: {
-                                    filters: JSON.stringify({
-                                        match: 'and',
-                                        rules: [{
-                                            field: FIELD_MAPPINGS.staffEmails.staffAdmin,
-                                            operator: 'is',
-                                            value: userEmail
-                                        }]
-                                    })
+                            console.log('[Student Results Viewer] User is Staff Admin, getting establishment from profile...');
+                            
+                            // Get establishment from user profile (Object_3)
+                            if (user.establishmentConnection) {
+                                debugLog('Establishment connection from profile:', user.establishmentConnection);
+                                
+                                // Parse establishment ID
+                                if (typeof user.establishmentConnection === 'object' && user.establishmentConnection.id) {
+                                    establishmentId = user.establishmentConnection.id;
+                                } else if (Array.isArray(user.establishmentConnection) && user.establishmentConnection.length > 0) {
+                                    establishmentId = user.establishmentConnection[0].id || user.establishmentConnection[0];
+                                } else if (typeof user.establishmentConnection === 'string') {
+                                    establishmentId = user.establishmentConnection;
                                 }
-                            });
-
-                            if (staffResponse.records.length > 0) {
-                                const establishmentId = staffResponse.records[0].field_133_raw?.[0]?.id;
+                                
+                                // Try raw field as backup
+                                if (!establishmentId && user.profileRecord) {
+                                    const rawField = user.profileRecord[FIELD_MAPPINGS.userProfile.establishment + '_raw'];
+                                    debugLog('Raw establishment field:', rawField);
+                                    if (rawField) {
+                                        if (Array.isArray(rawField) && rawField.length > 0) {
+                                            establishmentId = rawField[0].id || rawField[0];
+                                        } else if (rawField.id) {
+                                            establishmentId = rawField.id;
+                                        }
+                                    }
+                                }
+                                
                                 if (establishmentId) {
+                                    console.log('[Student Results Viewer] Found establishment ID:', establishmentId);
                                     filters.push({
                                         field: FIELD_MAPPINGS.connections.establishment,
                                         operator: 'is',
                                         value: establishmentId
                                     });
+                                } else {
+                                    console.warn('[Student Results Viewer] No establishment found for Staff Admin');
                                 }
                             }
-                        } else {
+                        }
+                        
+                        // For non-Staff Admin roles or as additional filters
+                        if (!establishmentId || userRoles.value.some(r => r !== 'Staff Admin')) {
+                            // Get role-specific record IDs
+                            const rolePromises = [];
+                            
+                            // Get Tutor record ID
+                            if (userRoles.value.includes('Tutor')) {
+                                debugLog('Fetching Tutor record...');
+                                rolePromises.push(
+                                    $.ajax({
+                                        url: `https://api.knack.com/v1/objects/${FIELD_MAPPINGS.objects.tutor}/records`,
+                                        type: 'GET',
+                                        headers: {
+                                            'X-Knack-Application-Id': config.knackAppId,
+                                            'X-Knack-REST-API-Key': config.knackApiKey
+                                        },
+                                        data: {
+                                            filters: JSON.stringify({
+                                                match: 'and',
+                                                rules: [{
+                                                    field: FIELD_MAPPINGS.staffEmails.tutor,
+                                                    operator: 'is',
+                                                    value: userEmail
+                                                }]
+                                            })
+                                        }
+                                    }).then(response => {
+                                        if (response.records.length > 0) {
+                                            staffRecordIds.tutor = response.records[0].id;
+                                            console.log('[Student Results Viewer] Found tutor record ID:', staffRecordIds.tutor);
+                                        }
+                                    }).catch(err => {
+                                        console.error('[Student Results Viewer] Error fetching Tutor record:', err);
+                                    })
+                                );
+                            }
+                            
+                            // Get Head of Year record ID
+                            if (userRoles.value.includes('Head of Year')) {
+                                debugLog('Fetching Head of Year record...');
+                                rolePromises.push(
+                                    $.ajax({
+                                        url: `https://api.knack.com/v1/objects/${FIELD_MAPPINGS.objects.headOfYear}/records`,
+                                        type: 'GET',
+                                        headers: {
+                                            'X-Knack-Application-Id': config.knackAppId,
+                                            'X-Knack-REST-API-Key': config.knackApiKey
+                                        },
+                                        data: {
+                                            filters: JSON.stringify({
+                                                match: 'and',
+                                                rules: [{
+                                                    field: FIELD_MAPPINGS.staffEmails.headOfYear,
+                                                    operator: 'is',
+                                                    value: userEmail
+                                                }]
+                                            })
+                                        }
+                                    }).then(response => {
+                                        if (response.records.length > 0) {
+                                            staffRecordIds.headOfYear = response.records[0].id;
+                                            console.log('[Student Results Viewer] Found Head of Year record ID:', staffRecordIds.headOfYear);
+                                        }
+                                    }).catch(err => {
+                                        console.error('[Student Results Viewer] Error fetching Head of Year record:', err);
+                                    })
+                                );
+                            }
+                            
+                            // Get Subject Teacher record ID
+                            if (userRoles.value.includes('Subject Teacher')) {
+                                debugLog('Fetching Subject Teacher record...');
+                                rolePromises.push(
+                                    $.ajax({
+                                        url: `https://api.knack.com/v1/objects/${FIELD_MAPPINGS.objects.subjectTeacher}/records`,
+                                        type: 'GET',
+                                        headers: {
+                                            'X-Knack-Application-Id': config.knackAppId,
+                                            'X-Knack-REST-API-Key': config.knackApiKey
+                                        },
+                                        data: {
+                                            filters: JSON.stringify({
+                                                match: 'and',
+                                                rules: [{
+                                                    field: FIELD_MAPPINGS.staffEmails.subjectTeacher,
+                                                    operator: 'is',
+                                                    value: userEmail
+                                                }]
+                                            })
+                                        }
+                                    }).then(response => {
+                                        if (response.records.length > 0) {
+                                            staffRecordIds.subjectTeacher = response.records[0].id;
+                                            console.log('[Student Results Viewer] Found Subject Teacher record ID:', staffRecordIds.subjectTeacher);
+                                        }
+                                    }).catch(err => {
+                                        console.error('[Student Results Viewer] Error fetching Subject Teacher record:', err);
+                                    })
+                                );
+                            }
+                            
+                            // Wait for all role fetches to complete
+                            await Promise.all(rolePromises);
+                            
+                            // Build role filters for many-to-many connections
                             const roleFilters = [];
                             
                             if (staffRecordIds.tutor) {
+                                // Use 'contains' operator for array fields
                                 roleFilters.push({
                                     field: FIELD_MAPPINGS.connections.tutor,
-                                    operator: 'is',
+                                    operator: 'contains',
                                     value: staffRecordIds.tutor
                                 });
                             }
@@ -355,7 +458,7 @@ window.STUDENT_RESULTS_CONFIG = { FIELD_MAPPINGS, RAG_CONFIG, THEME_CONFIG, getR
                             if (staffRecordIds.headOfYear) {
                                 roleFilters.push({
                                     field: FIELD_MAPPINGS.connections.headOfYear,
-                                    operator: 'is',
+                                    operator: 'contains',
                                     value: staffRecordIds.headOfYear
                                 });
                             }
@@ -363,43 +466,68 @@ window.STUDENT_RESULTS_CONFIG = { FIELD_MAPPINGS, RAG_CONFIG, THEME_CONFIG, getR
                             if (staffRecordIds.subjectTeacher) {
                                 roleFilters.push({
                                     field: FIELD_MAPPINGS.connections.subjectTeacher,
-                                    operator: 'is',
+                                    operator: 'contains',
                                     value: staffRecordIds.subjectTeacher
                                 });
                             }
                             
                             if (roleFilters.length > 0) {
-                                // If user has multiple roles, use OR to get all their students
-                                if (roleFilters.length > 1) {
+                                // If Staff Admin with establishment, add role filters as OR within establishment
+                                if (establishmentId) {
                                     filters.push({
                                         match: 'or',
                                         rules: roleFilters
                                     });
                                 } else {
-                                    filters.push(...roleFilters);
+                                    // Non-Staff Admin: use OR to get all their students
+                                    if (roleFilters.length > 1) {
+                                        filters = [{
+                                            match: 'or',
+                                            rules: roleFilters
+                                        }];
+                                    } else {
+                                        filters = roleFilters;
+                                    }
                                 }
                             }
                         }
 
-                        const response = await $.ajax({
-                            url: `https://api.knack.com/v1/objects/${FIELD_MAPPINGS.objects.vespaResults}/records`,
-                            type: 'GET',
-                            headers: {
-                                'X-Knack-Application-Id': config.knackAppId,
-                                'X-Knack-REST-API-Key': config.knackApiKey
-                            },
-                            data: {
-                                page: 1,
-                                rows_per_page: 1000,
-                                filters: filters.length > 0 ? JSON.stringify({
-                                    match: 'and',
-                                    rules: filters
-                                }) : undefined
-                            }
-                        });
+                        // Fetch ALL pages if needed
+                        let allRecords = [];
+                        let page = 1;
+                        let hasMore = true;
+                        const MAX_PAGES = establishmentId ? 20 : 5; // More pages for Staff Admin
+                        
+                        debugLog('Final filters to be applied:', filters);
+                        
+                        while (hasMore && page <= MAX_PAGES) {
+                            const response = await $.ajax({
+                                url: `https://api.knack.com/v1/objects/${FIELD_MAPPINGS.objects.vespaResults}/records`,
+                                type: 'GET',
+                                headers: {
+                                    'X-Knack-Application-Id': config.knackAppId,
+                                    'X-Knack-REST-API-Key': config.knackApiKey
+                                },
+                                data: {
+                                    page: page,
+                                    rows_per_page: 1000,
+                                    filters: filters.length > 0 ? JSON.stringify({
+                                        match: 'and',
+                                        rules: filters
+                                    }) : undefined
+                                }
+                            });
+                            
+                            allRecords = allRecords.concat(response.records);
+                            console.log(`[Student Results Viewer] Page ${page}: fetched ${response.records.length} records (total: ${allRecords.length})`);
+                            
+                            // Check if there are more pages
+                            hasMore = response.total_pages > page;
+                            page++;
+                        }
 
-                        console.log(`[Student Results Viewer] Fetched ${response.records.length} student records`);
-                        students.value = processStudentData(response.records);
+                        console.log(`[Student Results Viewer] Total fetched: ${allRecords.length} student records`);
+                        students.value = processStudentData(allRecords);
                         applyFiltersAndSort();
 
                     } catch (err) {
@@ -412,8 +540,11 @@ window.STUDENT_RESULTS_CONFIG = { FIELD_MAPPINGS, RAG_CONFIG, THEME_CONFIG, getR
 
                 const processStudentData = (records) => {
                     console.log('[Student Results Viewer] Processing', records.length, 'records');
+                    if (records.length > 0) {
+                        debugLog('Sample record structure:', records[0]);
+                    }
                     
-                    // Since each record contains ALL cycles for a student, process differently
+                    // Process each record - ALL cycles are in the same record
                     const students = records.map(record => {
                         const student = {
                             id: record.id,
@@ -428,7 +559,7 @@ window.STUDENT_RESULTS_CONFIG = { FIELD_MAPPINGS, RAG_CONFIG, THEME_CONFIG, getR
                         
                         // Extract scores for all 3 cycles from the same record
                         // Cycle 1
-                        student.cycles[1] = {
+                        const c1Scores = {
                             vision: parseInt(record[FIELD_MAPPINGS.scores.cycle1.vision]) || null,
                             effort: parseInt(record[FIELD_MAPPINGS.scores.cycle1.effort]) || null,
                             systems: parseInt(record[FIELD_MAPPINGS.scores.cycle1.systems]) || null,
@@ -436,9 +567,13 @@ window.STUDENT_RESULTS_CONFIG = { FIELD_MAPPINGS, RAG_CONFIG, THEME_CONFIG, getR
                             attitude: parseInt(record[FIELD_MAPPINGS.scores.cycle1.attitude]) || null,
                             overall: parseInt(record[FIELD_MAPPINGS.scores.cycle1.overall]) || null
                         };
+                        // Only add if there's at least one score
+                        if (Object.values(c1Scores).some(v => v !== null)) {
+                            student.cycles[1] = c1Scores;
+                        }
                         
                         // Cycle 2
-                        student.cycles[2] = {
+                        const c2Scores = {
                             vision: parseInt(record[FIELD_MAPPINGS.scores.cycle2.vision]) || null,
                             effort: parseInt(record[FIELD_MAPPINGS.scores.cycle2.effort]) || null,
                             systems: parseInt(record[FIELD_MAPPINGS.scores.cycle2.systems]) || null,
@@ -446,9 +581,12 @@ window.STUDENT_RESULTS_CONFIG = { FIELD_MAPPINGS, RAG_CONFIG, THEME_CONFIG, getR
                             attitude: parseInt(record[FIELD_MAPPINGS.scores.cycle2.attitude]) || null,
                             overall: parseInt(record[FIELD_MAPPINGS.scores.cycle2.overall]) || null
                         };
+                        if (Object.values(c2Scores).some(v => v !== null)) {
+                            student.cycles[2] = c2Scores;
+                        }
                         
                         // Cycle 3
-                        student.cycles[3] = {
+                        const c3Scores = {
                             vision: parseInt(record[FIELD_MAPPINGS.scores.cycle3.vision]) || null,
                             effort: parseInt(record[FIELD_MAPPINGS.scores.cycle3.effort]) || null,
                             systems: parseInt(record[FIELD_MAPPINGS.scores.cycle3.systems]) || null,
@@ -456,6 +594,9 @@ window.STUDENT_RESULTS_CONFIG = { FIELD_MAPPINGS, RAG_CONFIG, THEME_CONFIG, getR
                             attitude: parseInt(record[FIELD_MAPPINGS.scores.cycle3.attitude]) || null,
                             overall: parseInt(record[FIELD_MAPPINGS.scores.cycle3.overall]) || null
                         };
+                        if (Object.values(c3Scores).some(v => v !== null)) {
+                            student.cycles[3] = c3Scores;
+                        }
                         
                         // Calculate trends
                         student.trends = calculateTrends(student.cycles);
@@ -469,6 +610,7 @@ window.STUDENT_RESULTS_CONFIG = { FIELD_MAPPINGS, RAG_CONFIG, THEME_CONFIG, getR
 
                 const detectStudentRoles = (record) => {
                     const roles = [];
+                    // These are arrays in Object_10, so just check if they exist
                     if (record[FIELD_MAPPINGS.connections.staffAdmin]) roles.push('staffAdmin');
                     if (record[FIELD_MAPPINGS.connections.tutor]) roles.push('tutor');
                     if (record[FIELD_MAPPINGS.connections.headOfYear]) roles.push('headOfYear');
@@ -481,10 +623,14 @@ window.STUDENT_RESULTS_CONFIG = { FIELD_MAPPINGS, RAG_CONFIG, THEME_CONFIG, getR
                     const dimensions = ['vision', 'effort', 'systems', 'practice', 'attitude', 'overall'];
                     
                     dimensions.forEach(dim => {
-                        const values = [cycles[1]?.[dim], cycles[2]?.[dim], cycles[3]?.[dim]].filter(v => v !== null);
+                        const values = [];
+                        if (cycles[1] && cycles[1][dim] !== null) values.push({ cycle: 1, value: cycles[1][dim] });
+                        if (cycles[2] && cycles[2][dim] !== null) values.push({ cycle: 2, value: cycles[2][dim] });
+                        if (cycles[3] && cycles[3][dim] !== null) values.push({ cycle: 3, value: cycles[3][dim] });
+                        
                         if (values.length >= 2) {
-                            const lastValue = values[values.length - 1];
-                            const prevValue = values[values.length - 2];
+                            const lastValue = values[values.length - 1].value;
+                            const prevValue = values[values.length - 2].value;
                             if (lastValue > prevValue) trends[dim] = 'up';
                             else if (lastValue < prevValue) trends[dim] = 'down';
                             else trends[dim] = 'same';
@@ -563,13 +709,16 @@ window.STUDENT_RESULTS_CONFIG = { FIELD_MAPPINGS, RAG_CONFIG, THEME_CONFIG, getR
                 const exportToCSV = () => {
                     console.log('[Student Results Viewer] Exporting to CSV...');
                     
+                    // Build headers
                     const headers = ['Name', 'Email', 'Group', 'Year Group', 'Faculty'];
+                    
+                    // Add cycle headers
                     for (let cycle = 1; cycle <= 3; cycle++) {
-                        ['Vision', 'Effort', 'Systems', 'Practice', 'Attitude', 'Overall'].forEach(dim => {
-                            headers.push(`Cycle ${cycle} ${dim}`);
-                        });
+                        headers.push(`C${cycle} Vision`, `C${cycle} Effort`, `C${cycle} Systems`, 
+                                    `C${cycle} Practice`, `C${cycle} Attitude`, `C${cycle} Overall`);
                     }
                     
+                    // Build rows
                     const rows = filteredStudents.value.map(student => {
                         const row = [
                             student.name || '',
@@ -579,34 +728,82 @@ window.STUDENT_RESULTS_CONFIG = { FIELD_MAPPINGS, RAG_CONFIG, THEME_CONFIG, getR
                             student.faculty || ''
                         ];
                         
+                        // Add cycle data
                         for (let cycle = 1; cycle <= 3; cycle++) {
-                            ['vision', 'effort', 'systems', 'practice', 'attitude', 'overall'].forEach(dim => {
-                                row.push(student.cycles[cycle]?.[dim] || '');
-                            });
+                            const cycleData = student.cycles[cycle] || {};
+                            row.push(
+                                cycleData.vision || '',
+                                cycleData.effort || '',
+                                cycleData.systems || '',
+                                cycleData.practice || '',
+                                cycleData.attitude || '',
+                                cycleData.overall || ''
+                            );
                         }
                         
                         return row;
                     });
                     
+                    // Convert to CSV
                     const csvContent = [headers, ...rows]
-                        .map(row => row.map(cell => `"${cell}"`).join(','))
-                        .join('\\n');
+                        .map(row => row.map(cell => {
+                            // Escape quotes and wrap in quotes if contains comma
+                            const escaped = String(cell).replace(/"/g, '""');
+                            return escaped.includes(',') ? `"${escaped}"` : escaped;
+                        }).join(','))
+                        .join('\n');
                     
-                    const blob = new Blob([csvContent], { type: 'text/csv' });
+                    // Download
+                    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
                     const url = window.URL.createObjectURL(blob);
                     const a = document.createElement('a');
                     a.href = url;
-                    a.download = `student-results-${new Date().toISOString().split('T')[0]}.csv`;
+                    a.download = `vespa-results-${new Date().toISOString().split('T')[0]}.csv`;
+                    document.body.appendChild(a);
                     a.click();
+                    document.body.removeChild(a);
                     window.URL.revokeObjectURL(url);
+                    
+                    console.log('[Student Results Viewer] CSV exported successfully');
                 };
 
                 const showStudentProgress = (student) => {
                     selectedStudent.value = student;
+                    // TODO: Implement progress chart modal
+                    console.log('[Student Results Viewer] Progress charts coming soon for:', student.name);
+                    alert(`Progress charts coming soon!\n\nStudent: ${student.name}\nCycles completed: ${Object.keys(student.cycles).length}`);
                 };
 
                 const toggleGroupAnalytics = () => {
                     showGroupAnalytics.value = !showGroupAnalytics.value;
+                    // TODO: Implement group analytics modal
+                    if (showGroupAnalytics.value) {
+                        const avgScores = calculateGroupAverages();
+                        console.log('[Student Results Viewer] Group analytics:', avgScores);
+                        alert(`Group Analytics (Coming Soon!)\n\nTotal Students: ${filteredStudents.value.length}\n\nFeatures to be added:\n- Average scores by dimension\n- Distribution charts\n- Trend analysis\n- Export reports`);
+                    }
+                };
+
+                const calculateGroupAverages = () => {
+                    // TODO: Implement proper group analytics
+                    const dimensions = ['vision', 'effort', 'systems', 'practice', 'attitude', 'overall'];
+                    const averages = {};
+                    
+                    for (let cycle = 1; cycle <= 3; cycle++) {
+                        averages[`cycle${cycle}`] = {};
+                        dimensions.forEach(dim => {
+                            const scores = filteredStudents.value
+                                .map(s => s.cycles[cycle]?.[dim])
+                                .filter(v => v !== null && v !== undefined);
+                            
+                            if (scores.length > 0) {
+                                const avg = scores.reduce((a, b) => a + b, 0) / scores.length;
+                                averages[`cycle${cycle}`][dim] = Math.round(avg * 10) / 10;
+                            }
+                        });
+                    }
+                    
+                    return averages;
                 };
 
                 watch([selectedRole, searchQuery, selectedYearGroup, selectedFaculty, selectedGroup], () => {
@@ -723,6 +920,9 @@ window.STUDENT_RESULTS_CONFIG = { FIELD_MAPPINGS, RAG_CONFIG, THEME_CONFIG, getR
                         
                         <div class="srv-count">
                             Showing {{ filteredStudents.length }} of {{ students.length }} students
+                            <span v-if="userRoles.length > 0" class="srv-role-info">
+                                ({{ userRoles.join(', ') }})
+                            </span>
                         </div>
                         
                         <div class="srv-table-wrapper">
@@ -750,29 +950,29 @@ window.STUDENT_RESULTS_CONFIG = { FIELD_MAPPINGS, RAG_CONFIG, THEME_CONFIG, getR
                                         <th></th>
                                         <th></th>
                                         
-                                        <th class="dimension-header sortable" @click="handleSort('cycle1_vision')">V1</th>
-                                        <th class="dimension-header sortable" @click="handleSort('cycle1_effort')">E1</th>
-                                        <th class="dimension-header sortable" @click="handleSort('cycle1_systems')">S1</th>
-                                        <th class="dimension-header sortable" @click="handleSort('cycle1_practice')">P1</th>
-                                        <th class="dimension-header sortable" @click="handleSort('cycle1_attitude')">A1</th>
-                                        <th class="dimension-header sortable" @click="handleSort('cycle1_overall')">O1</th>
-                                        <th class="trend-header">T</th>
+                                        <th class="dimension-header sortable" @click="handleSort('cycle1_vision')" title="Vision">V1</th>
+                                        <th class="dimension-header sortable" @click="handleSort('cycle1_effort')" title="Effort">E1</th>
+                                        <th class="dimension-header sortable" @click="handleSort('cycle1_systems')" title="Systems">S1</th>
+                                        <th class="dimension-header sortable" @click="handleSort('cycle1_practice')" title="Practice">P1</th>
+                                        <th class="dimension-header sortable" @click="handleSort('cycle1_attitude')" title="Attitude">A1</th>
+                                        <th class="dimension-header sortable" @click="handleSort('cycle1_overall')" title="Overall">O1</th>
+                                        <th class="trend-header" title="Trend">T</th>
                                         
-                                        <th class="dimension-header sortable" @click="handleSort('cycle2_vision')">V2</th>
-                                        <th class="dimension-header sortable" @click="handleSort('cycle2_effort')">E2</th>
-                                        <th class="dimension-header sortable" @click="handleSort('cycle2_systems')">S2</th>
-                                        <th class="dimension-header sortable" @click="handleSort('cycle2_practice')">P2</th>
-                                        <th class="dimension-header sortable" @click="handleSort('cycle2_attitude')">A2</th>
-                                        <th class="dimension-header sortable" @click="handleSort('cycle2_overall')">O2</th>
-                                        <th class="trend-header">T</th>
+                                        <th class="dimension-header sortable" @click="handleSort('cycle2_vision')" title="Vision">V2</th>
+                                        <th class="dimension-header sortable" @click="handleSort('cycle2_effort')" title="Effort">E2</th>
+                                        <th class="dimension-header sortable" @click="handleSort('cycle2_systems')" title="Systems">S2</th>
+                                        <th class="dimension-header sortable" @click="handleSort('cycle2_practice')" title="Practice">P2</th>
+                                        <th class="dimension-header sortable" @click="handleSort('cycle2_attitude')" title="Attitude">A2</th>
+                                        <th class="dimension-header sortable" @click="handleSort('cycle2_overall')" title="Overall">O2</th>
+                                        <th class="trend-header" title="Trend">T</th>
                                         
-                                        <th class="dimension-header sortable" @click="handleSort('cycle3_vision')">V3</th>
-                                        <th class="dimension-header sortable" @click="handleSort('cycle3_effort')">E3</th>
-                                        <th class="dimension-header sortable" @click="handleSort('cycle3_systems')">S3</th>
-                                        <th class="dimension-header sortable" @click="handleSort('cycle3_practice')">P3</th>
-                                        <th class="dimension-header sortable" @click="handleSort('cycle3_attitude')">A3</th>
-                                        <th class="dimension-header sortable" @click="handleSort('cycle3_overall')">O3</th>
-                                        <th class="trend-header">T</th>
+                                        <th class="dimension-header sortable" @click="handleSort('cycle3_vision')" title="Vision">V3</th>
+                                        <th class="dimension-header sortable" @click="handleSort('cycle3_effort')" title="Effort">E3</th>
+                                        <th class="dimension-header sortable" @click="handleSort('cycle3_systems')" title="Systems">S3</th>
+                                        <th class="dimension-header sortable" @click="handleSort('cycle3_practice')" title="Practice">P3</th>
+                                        <th class="dimension-header sortable" @click="handleSort('cycle3_attitude')" title="Attitude">A3</th>
+                                        <th class="dimension-header sortable" @click="handleSort('cycle3_overall')" title="Overall">O3</th>
+                                        <th class="trend-header" title="Trend">T</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -783,43 +983,43 @@ window.STUDENT_RESULTS_CONFIG = { FIELD_MAPPINGS, RAG_CONFIG, THEME_CONFIG, getR
                                         @mouseleave="hoveredStudent = null"
                                         class="student-row">
                                         
-                                        <td class="student-name">{{ student.name }}</td>
+                                        <td class="student-name" :title="student.email">{{ student.name }}</td>
                                         <td class="student-group">{{ student.group }}</td>
                                         
+                                        <!-- Cycle 1 -->
                                         <td v-for="dim in ['vision', 'effort', 'systems', 'practice', 'attitude', 'overall']"
                                             :key="'c1-' + dim"
                                             :class="['score-cell', getRagRating(student.cycles[1]?.[dim]) ? 'rag-' + getRagRating(student.cycles[1]?.[dim]) : '']">
                                             {{ student.cycles[1]?.[dim] || '-' }}
                                         </td>
                                         <td class="trend-cell">
-                                            <span v-if="student.trends.overall && student.cycles[1]" 
-                                                  :class="'trend-' + student.trends.overall">
-                                                {{ student.trends.overall === 'up' ? '↑' : student.trends.overall === 'down' ? '↓' : '↔' }}
-                                            </span>
+                                            <span v-if="student.trends.overall === 'up'" class="trend-up">↑</span>
+                                            <span v-else-if="student.trends.overall === 'down'" class="trend-down">↓</span>
+                                            <span v-else-if="student.trends.overall === 'same'" class="trend-same">↔</span>
                                         </td>
                                         
+                                        <!-- Cycle 2 -->
                                         <td v-for="dim in ['vision', 'effort', 'systems', 'practice', 'attitude', 'overall']"
                                             :key="'c2-' + dim"
                                             :class="['score-cell', getRagRating(student.cycles[2]?.[dim]) ? 'rag-' + getRagRating(student.cycles[2]?.[dim]) : '']">
                                             {{ student.cycles[2]?.[dim] || '-' }}
                                         </td>
                                         <td class="trend-cell">
-                                            <span v-if="student.trends.overall && student.cycles[2]" 
-                                                  :class="'trend-' + student.trends.overall">
-                                                {{ student.trends.overall === 'up' ? '↑' : student.trends.overall === 'down' ? '↓' : '↔' }}
-                                            </span>
+                                            <span v-if="student.trends.overall === 'up'" class="trend-up">↑</span>
+                                            <span v-else-if="student.trends.overall === 'down'" class="trend-down">↓</span>
+                                            <span v-else-if="student.trends.overall === 'same'" class="trend-same">↔</span>
                                         </td>
                                         
+                                        <!-- Cycle 3 -->
                                         <td v-for="dim in ['vision', 'effort', 'systems', 'practice', 'attitude', 'overall']"
                                             :key="'c3-' + dim"
                                             :class="['score-cell', getRagRating(student.cycles[3]?.[dim]) ? 'rag-' + getRagRating(student.cycles[3]?.[dim]) : '']">
                                             {{ student.cycles[3]?.[dim] || '-' }}
                                         </td>
                                         <td class="trend-cell">
-                                            <span v-if="student.trends.overall && student.cycles[3]" 
-                                                  :class="'trend-' + student.trends.overall">
-                                                {{ student.trends.overall === 'up' ? '↑' : student.trends.overall === 'down' ? '↓' : '↔' }}
-                                            </span>
+                                            <span v-if="student.trends.overall === 'up'" class="trend-up">↑</span>
+                                            <span v-else-if="student.trends.overall === 'down'" class="trend-down">↓</span>
+                                            <span v-else-if="student.trends.overall === 'same'" class="trend-same">↔</span>
                                         </td>
                                     </tr>
                                 </tbody>
