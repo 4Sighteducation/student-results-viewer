@@ -1,15 +1,13 @@
 /**
- * Student Results Viewer v2.1.0
- * Major UI/UX improvements with charts and analytics
+ * Student Results Viewer v2.2.0
+ * Enhanced with smart filters and improved layout
  * Copyright 2025 4Sight Education Ltd
  * 
- * NEW FEATURES:
- * - Restructured column layout (V1,V2,V3,VT, E1,E2,E3,ET, etc.)
- * - Hide empty columns automatically
- * - Pagination with customizable page size
- * - Bar chart modal for student progression
- * - Group analytics implementation
- * - Improved header visibility
+ * NEW FEATURES v2.2.0:
+ * - Fixed table height for better visibility
+ * - Consistent VESPA theme colors in charts
+ * - Smart filters for conditional searches
+ * - All column headers are sortable
  */
 
 // Debug mode flag - SET TO TRUE FOR TROUBLESHOOTING
@@ -163,7 +161,7 @@ window.STUDENT_RESULTS_CONFIG = { FIELD_MAPPINGS, RAG_CONFIG, THEME_CONFIG, getR
     }
 
     window.initializeStudentResultsViewer = function() {
-        console.log('[Student Results Viewer] Initializing v2.1.0...');
+        console.log('[Student Results Viewer] Initializing v2.2.0...');
 
         waitForConfig(async (config) => {
             // Load Chart.js first
@@ -244,6 +242,8 @@ window.STUDENT_RESULTS_CONFIG = { FIELD_MAPPINGS, RAG_CONFIG, THEME_CONFIG, getR
                 const chartStudent = ref(null);
                 const chartInstance = ref(null);
                 const groupChartInstance = ref(null);
+                const showSmartFilters = ref(false);
+                const smartFilters = ref([]);
                 
                 // Pagination
                 const currentPage = ref(1);
@@ -282,6 +282,21 @@ window.STUDENT_RESULTS_CONFIG = { FIELD_MAPPINGS, RAG_CONFIG, THEME_CONFIG, getR
                     if (roles.length > 1) roles.unshift({ value: 'all', label: 'All My Students' });
                     return roles;
                 });
+
+                const addSmartFilter = () => {
+                    smartFilters.value.push({
+                        id: Date.now(),
+                        dimension: 'vision',
+                        cycle: '1',
+                        operator: '>',
+                        value: 5
+                    });
+                };
+
+                const removeSmartFilter = (id) => {
+                    smartFilters.value = smartFilters.value.filter(f => f.id !== id);
+                    applyFiltersAndSort();
+                };
 
                 const fetchUserInfo = async () => {
                     try {
@@ -800,6 +815,26 @@ window.STUDENT_RESULTS_CONFIG = { FIELD_MAPPINGS, RAG_CONFIG, THEME_CONFIG, getR
                     if (selectedGroup.value !== 'all') {
                         filtered = filtered.filter(s => s.group === selectedGroup.value);
                     }
+
+                    // Apply smart filters
+                    smartFilters.value.forEach(filter => {
+                        const cycleNum = parseInt(filter.cycle);
+                        const value = parseFloat(filter.value);
+                        
+                        filtered = filtered.filter(student => {
+                            const score = student.cycles[cycleNum]?.[filter.dimension];
+                            if (score === null || score === undefined) return false;
+                            
+                            switch(filter.operator) {
+                                case '>': return score > value;
+                                case '>=': return score >= value;
+                                case '<': return score < value;
+                                case '<=': return score <= value;
+                                case '=': return score === value;
+                                default: return true;
+                            }
+                        });
+                    });
                     
                     filtered.sort((a, b) => {
                         let aVal, bVal;
@@ -807,9 +842,10 @@ window.STUDENT_RESULTS_CONFIG = { FIELD_MAPPINGS, RAG_CONFIG, THEME_CONFIG, getR
                         if (sortField.value === 'name') {
                             aVal = a.name || '';
                             bVal = b.name || '';
-                        } else if (sortField.value.includes('cycle')) {
-                            const [cycle, dimension] = sortField.value.split('_');
-                            const cycleNum = parseInt(cycle.replace('cycle', ''));
+                        } else if (sortField.value.includes('_')) {
+                            // Format: dimension_cycle (e.g., vision_1)
+                            const [dimension, cycle] = sortField.value.split('_');
+                            const cycleNum = parseInt(cycle);
                             aVal = a.cycles[cycleNum]?.[dimension] || 0;
                             bVal = b.cycles[cycleNum]?.[dimension] || 0;
                         } else {
@@ -876,19 +912,23 @@ window.STUDENT_RESULTS_CONFIG = { FIELD_MAPPINGS, RAG_CONFIG, THEME_CONFIG, getR
                     const datasets = [];
                     const labels = dimensions.map(d => THEME_CONFIG.vespaLabels[d.charAt(0).toUpperCase()] || d);
                     
-                    // Create dataset for each cycle
+                    // Create dataset for each cycle with VESPA colors
                     for (let cycle = 1; cycle <= 3; cycle++) {
                         if (student.cycles[cycle]) {
                             const data = dimensions.map(d => student.cycles[cycle][d] || 0);
                             datasets.push({
                                 label: `Cycle ${cycle}`,
                                 data: data,
-                                backgroundColor: cycle === 1 ? 'rgba(255, 99, 132, 0.5)' :
-                                                cycle === 2 ? 'rgba(54, 162, 235, 0.5)' :
-                                                'rgba(75, 192, 192, 0.5)',
-                                borderColor: cycle === 1 ? 'rgb(255, 99, 132)' :
-                                           cycle === 2 ? 'rgb(54, 162, 235)' :
-                                           'rgb(75, 192, 192)',
+                                backgroundColor: dimensions.map(d => {
+                                    const alpha = cycle === 1 ? 0.3 : cycle === 2 ? 0.5 : 0.7;
+                                    const color = THEME_CONFIG.colors[d];
+                                    // Convert hex to rgba
+                                    const r = parseInt(color.slice(1, 3), 16);
+                                    const g = parseInt(color.slice(3, 5), 16);
+                                    const b = parseInt(color.slice(5, 7), 16);
+                                    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+                                }),
+                                borderColor: dimensions.map(d => THEME_CONFIG.colors[d]),
                                 borderWidth: 2
                             });
                         }
@@ -962,16 +1002,20 @@ window.STUDENT_RESULTS_CONFIG = { FIELD_MAPPINGS, RAG_CONFIG, THEME_CONFIG, getR
                         });
                         
                         if (averages.some(v => v > 0)) {
+                            // Use VESPA colors for the radar chart
+                            const alpha = cycle === 1 ? 0.2 : cycle === 2 ? 0.3 : 0.4;
                             datasets.push({
                                 label: `Cycle ${cycle} Average`,
                                 data: averages,
-                                backgroundColor: cycle === 1 ? 'rgba(255, 99, 132, 0.5)' :
-                                                cycle === 2 ? 'rgba(54, 162, 235, 0.5)' :
-                                                'rgba(75, 192, 192, 0.5)',
-                                borderColor: cycle === 1 ? 'rgb(255, 99, 132)' :
-                                           cycle === 2 ? 'rgb(54, 162, 235)' :
-                                           'rgb(75, 192, 192)',
-                                borderWidth: 2
+                                backgroundColor: `rgba(102, 126, 234, ${alpha})`,
+                                borderColor: cycle === 1 ? '#ff8f00' : 
+                                           cycle === 2 ? '#86b4f0' : 
+                                           '#72cb44',
+                                borderWidth: 2,
+                                pointBackgroundColor: dimensions.map(d => THEME_CONFIG.colors[d]),
+                                pointBorderColor: '#fff',
+                                pointHoverBackgroundColor: '#fff',
+                                pointHoverBorderColor: dimensions.map(d => THEME_CONFIG.colors[d])
                             });
                         }
                     }
@@ -1010,6 +1054,25 @@ window.STUDENT_RESULTS_CONFIG = { FIELD_MAPPINGS, RAG_CONFIG, THEME_CONFIG, getR
                 const exportToCSV = () => {
                     console.log('[Student Results Viewer] Exporting to CSV...');
                     
+                    // Helper to strip HTML from email addresses
+                    const stripEmailHTML = (email) => {
+                        if (!email) return '';
+                        
+                        // If it's already plain text, return as is
+                        if (!email.includes('<')) return email;
+                        
+                        // Extract email from HTML anchor tag
+                        const match = email.match(/mailto:([^"]+)"/);
+                        if (match && match[1]) {
+                            return match[1];
+                        }
+                        
+                        // Fallback: parse as HTML and get text content
+                        const tempDiv = document.createElement('div');
+                        tempDiv.innerHTML = email;
+                        return tempDiv.textContent || tempDiv.innerText || email;
+                    };
+                    
                     // Build headers
                     const headers = ['Name', 'Email', 'Group', 'Year Group', 'Faculty'];
                     const dimensions = ['vision', 'effort', 'systems', 'practice', 'attitude', 'overall'];
@@ -1026,7 +1089,7 @@ window.STUDENT_RESULTS_CONFIG = { FIELD_MAPPINGS, RAG_CONFIG, THEME_CONFIG, getR
                     const rows = filteredStudents.value.map(student => {
                         const row = [
                             student.name || '',
-                            student.email || '',
+                            stripEmailHTML(student.email) || '',  // Strip HTML from email
                             student.group || '',
                             student.yearGroup || '',
                             student.faculty || ''
@@ -1070,6 +1133,11 @@ window.STUDENT_RESULTS_CONFIG = { FIELD_MAPPINGS, RAG_CONFIG, THEME_CONFIG, getR
                     applyFiltersAndSort();
                 });
 
+                watch(smartFilters, () => {
+                    currentPage.value = 1;
+                    applyFiltersAndSort();
+                }, { deep: true });
+
                 watch([currentPage, pageSize], () => {
                     updatePagination();
                 });
@@ -1098,6 +1166,8 @@ window.STUDENT_RESULTS_CONFIG = { FIELD_MAPPINGS, RAG_CONFIG, THEME_CONFIG, getR
                     hoveredStudent,
                     showChartModal,
                     chartStudent,
+                    showSmartFilters,
+                    smartFilters,
                     yearGroups,
                     faculties,
                     groups,
@@ -1111,6 +1181,8 @@ window.STUDENT_RESULTS_CONFIG = { FIELD_MAPPINGS, RAG_CONFIG, THEME_CONFIG, getR
                     exportToCSV,
                     showStudentChart,
                     toggleGroupAnalytics,
+                    addSmartFilter,
+                    removeSmartFilter,
                     getRagRating,
                     RAG_CONFIG,
                     THEME_CONFIG,
@@ -1182,6 +1254,9 @@ window.STUDENT_RESULTS_CONFIG = { FIELD_MAPPINGS, RAG_CONFIG, THEME_CONFIG, getR
                                 </div>
                                 
                                 <div class="srv-actions">
+                                    <button @click="showSmartFilters = !showSmartFilters" class="btn-filter">
+                                        🔍 Smart Filters
+                                    </button>
                                     <button @click="toggleGroupAnalytics" class="btn-analytics">
                                         📊 Group Analytics
                                     </button>
@@ -1190,6 +1265,42 @@ window.STUDENT_RESULTS_CONFIG = { FIELD_MAPPINGS, RAG_CONFIG, THEME_CONFIG, getR
                                     </button>
                                 </div>
                             </div>
+                        </div>
+                        
+                        <!-- Smart Filters Section -->
+                        <div v-if="showSmartFilters" class="srv-smart-filters">
+                            <h3>Smart Filters</h3>
+                            <div class="filter-list">
+                                <div v-for="filter in smartFilters" :key="filter.id" class="filter-row">
+                                    <select v-model="filter.dimension">
+                                        <option value="vision">Vision</option>
+                                        <option value="effort">Effort</option>
+                                        <option value="systems">Systems</option>
+                                        <option value="practice">Practice</option>
+                                        <option value="attitude">Attitude</option>
+                                        <option value="overall">Overall</option>
+                                    </select>
+                                    
+                                    <select v-model="filter.cycle">
+                                        <option value="1">Cycle 1</option>
+                                        <option value="2">Cycle 2</option>
+                                        <option value="3">Cycle 3</option>
+                                    </select>
+                                    
+                                    <select v-model="filter.operator">
+                                        <option value=">">Greater than</option>
+                                        <option value=">=">Greater or equal</option>
+                                        <option value="<">Less than</option>
+                                        <option value="<=">Less or equal</option>
+                                        <option value="=">Equal to</option>
+                                    </select>
+                                    
+                                    <input type="number" v-model.number="filter.value" min="1" max="10" />
+                                    
+                                    <button @click="removeSmartFilter(filter.id)" class="btn-remove">❌</button>
+                                </div>
+                            </div>
+                            <button @click="addSmartFilter" class="btn-add-filter">+ Add Filter</button>
                         </div>
                         
                         <div class="srv-pagination">
@@ -1287,39 +1398,39 @@ window.STUDENT_RESULTS_CONFIG = { FIELD_MAPPINGS, RAG_CONFIG, THEME_CONFIG, getR
                                     </tr>
                                     <tr class="sub-header">
                                         <!-- Vision sub-headers -->
-                                        <th v-if="visibleColumns['vision_1']" class="cycle-header">V1</th>
-                                        <th v-if="visibleColumns['vision_2']" class="cycle-header">V2</th>
-                                        <th v-if="visibleColumns['vision_3']" class="cycle-header">V3</th>
+                                        <th v-if="visibleColumns['vision_1']" @click="handleSort('vision_1')" class="cycle-header sortable">V1</th>
+                                        <th v-if="visibleColumns['vision_2']" @click="handleSort('vision_2')" class="cycle-header sortable">V2</th>
+                                        <th v-if="visibleColumns['vision_3']" @click="handleSort('vision_3')" class="cycle-header sortable">V3</th>
                                         <th v-if="visibleColumns['vision_trend']" class="trend-header">VT</th>
                                         
                                         <!-- Effort sub-headers -->
-                                        <th v-if="visibleColumns['effort_1']" class="cycle-header">E1</th>
-                                        <th v-if="visibleColumns['effort_2']" class="cycle-header">E2</th>
-                                        <th v-if="visibleColumns['effort_3']" class="cycle-header">E3</th>
+                                        <th v-if="visibleColumns['effort_1']" @click="handleSort('effort_1')" class="cycle-header sortable">E1</th>
+                                        <th v-if="visibleColumns['effort_2']" @click="handleSort('effort_2')" class="cycle-header sortable">E2</th>
+                                        <th v-if="visibleColumns['effort_3']" @click="handleSort('effort_3')" class="cycle-header sortable">E3</th>
                                         <th v-if="visibleColumns['effort_trend']" class="trend-header">ET</th>
                                         
                                         <!-- Systems sub-headers -->
-                                        <th v-if="visibleColumns['systems_1']" class="cycle-header">S1</th>
-                                        <th v-if="visibleColumns['systems_2']" class="cycle-header">S2</th>
-                                        <th v-if="visibleColumns['systems_3']" class="cycle-header">S3</th>
+                                        <th v-if="visibleColumns['systems_1']" @click="handleSort('systems_1')" class="cycle-header sortable">S1</th>
+                                        <th v-if="visibleColumns['systems_2']" @click="handleSort('systems_2')" class="cycle-header sortable">S2</th>
+                                        <th v-if="visibleColumns['systems_3']" @click="handleSort('systems_3')" class="cycle-header sortable">S3</th>
                                         <th v-if="visibleColumns['systems_trend']" class="trend-header">ST</th>
                                         
                                         <!-- Practice sub-headers -->
-                                        <th v-if="visibleColumns['practice_1']" class="cycle-header">P1</th>
-                                        <th v-if="visibleColumns['practice_2']" class="cycle-header">P2</th>
-                                        <th v-if="visibleColumns['practice_3']" class="cycle-header">P3</th>
+                                        <th v-if="visibleColumns['practice_1']" @click="handleSort('practice_1')" class="cycle-header sortable">P1</th>
+                                        <th v-if="visibleColumns['practice_2']" @click="handleSort('practice_2')" class="cycle-header sortable">P2</th>
+                                        <th v-if="visibleColumns['practice_3']" @click="handleSort('practice_3')" class="cycle-header sortable">P3</th>
                                         <th v-if="visibleColumns['practice_trend']" class="trend-header">PT</th>
                                         
                                         <!-- Attitude sub-headers -->
-                                        <th v-if="visibleColumns['attitude_1']" class="cycle-header">A1</th>
-                                        <th v-if="visibleColumns['attitude_2']" class="cycle-header">A2</th>
-                                        <th v-if="visibleColumns['attitude_3']" class="cycle-header">A3</th>
+                                        <th v-if="visibleColumns['attitude_1']" @click="handleSort('attitude_1')" class="cycle-header sortable">A1</th>
+                                        <th v-if="visibleColumns['attitude_2']" @click="handleSort('attitude_2')" class="cycle-header sortable">A2</th>
+                                        <th v-if="visibleColumns['attitude_3']" @click="handleSort('attitude_3')" class="cycle-header sortable">A3</th>
                                         <th v-if="visibleColumns['attitude_trend']" class="trend-header">AT</th>
                                         
                                         <!-- Overall sub-headers -->
-                                        <th v-if="visibleColumns['overall_1']" class="cycle-header">O1</th>
-                                        <th v-if="visibleColumns['overall_2']" class="cycle-header">O2</th>
-                                        <th v-if="visibleColumns['overall_3']" class="cycle-header">O3</th>
+                                        <th v-if="visibleColumns['overall_1']" @click="handleSort('overall_1')" class="cycle-header sortable">O1</th>
+                                        <th v-if="visibleColumns['overall_2']" @click="handleSort('overall_2')" class="cycle-header sortable">O2</th>
+                                        <th v-if="visibleColumns['overall_3']" @click="handleSort('overall_3')" class="cycle-header sortable">O3</th>
                                         <th v-if="visibleColumns['overall_trend']" class="trend-header">OT</th>
                                     </tr>
                                 </thead>

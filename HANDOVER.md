@@ -5,7 +5,7 @@
 **Developer**: 4Sight Education Ltd  
 **Application**: Vue.js-based VESPA Student Results Viewer for Knack  
 **Repository**: https://github.com/4Sighteducation/student-results-viewer
-**Current Version**: v2.1.0 (studentResultsViewer1e.js)
+**Current Version**: v2.2.0 (studentResultsViewer1f.js)
 
 ## Project Aims
 Create a comprehensive, role-based student results viewing system that:
@@ -23,7 +23,7 @@ Create a comprehensive, role-based student results viewing system that:
 - **View**: `view_3214` (Rich Text view)
 - **Integration Method**: Knack App Loader (`WorkingAppLoader1.0_12_08_25.js`)
 - **Files**: 
-  - Production: `studentResultsViewer1e.js` and `studentResultsViewer1e.css`
+  - Production: `studentResultsViewer1f.js` and `studentResultsViewer1f.css`
   - CDN: `https://cdn.jsdelivr.net/gh/4Sighteducation/student-results-viewer@main/dist/`
 
 ### Key Knack Objects & Fields
@@ -120,6 +120,14 @@ Cycle 3: field_167-172 (V, E, S, P, A, Overall)
    - Sticky name column for easy reference
    - Improved RAG color coding
    - Chart.js integration for visualizations
+
+5. **Enhanced Features (v2.2.0)**
+   - Fixed table height issue - removed max-height restriction for better visibility
+   - Consistent VESPA theme colors in all charts (Vision=Orange, Effort=Light Blue, etc.)
+   - Smart filters for conditional searches (e.g., V1 < 4, E2 > 7)
+   - All column headers (V1, V2, E1, etc.) are now clickable for sorting
+   - Improved chart visualizations with dimension-specific colors
+   - Fixed CSV export to strip HTML from email addresses
 
 2. **Large Dataset Handling**
    - API pagination works but needs optimization
@@ -239,7 +247,7 @@ For issues or questions:
 
 ## Summary
 
-The Student Results Viewer v2.1.0 is now feature-complete with significant enhancements:
+The Student Results Viewer v2.2.0 is now feature-complete with significant enhancements:
 
 **Core Functionality:**
 - ✅ Correct email field mapping (field_70) for Object_3
@@ -248,13 +256,16 @@ The Student Results Viewer v2.1.0 is now feature-complete with significant enhan
 - ✅ Other roles see their specific students within the establishment
 - ✅ Multi-role support working correctly
 
-**New Features (v2.1.0):**
+**Enhanced Features (v2.2.0):**
+- ✅ Fixed table height - full visibility of paginated records
+- ✅ Smart conditional filters (e.g., V1 < 4, E2 > 7)
+- ✅ All column headers clickable for sorting
+- ✅ Consistent VESPA theme colors across all charts
 - ✅ Restructured table with V1,V2,V3,VT column grouping
 - ✅ Pagination with customizable page sizes
-- ✅ Interactive bar charts for student progress
-- ✅ Group analytics with radar charts
+- ✅ Interactive bar charts with VESPA colors
+- ✅ Group analytics with themed radar charts
 - ✅ Auto-hiding empty columns
 - ✅ Enhanced UI with gradient headers and sticky columns
-- ✅ Chart.js integration for beautiful visualizations
 
-The codebase is well-structured with clear separation of concerns, comprehensive error handling, and a modern, professional UI. Ready for production deployment!
+The codebase is well-structured with clear separation of concerns, comprehensive error handling, smart filtering capabilities, and a modern, professional UI. Ready for production deployment!

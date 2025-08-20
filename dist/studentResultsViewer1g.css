@@ -1,4 +1,5 @@
-/* Student Results Viewer v2.1.0 Enhanced Styles */
+/* Student Results Viewer v2.2.0 Enhanced Styles */
+/* Fixed table height and improved visibility */
 
 /* Container */
 #student-results-viewer {
@@ -50,7 +51,8 @@
 }
 
 .btn-analytics,
-.btn-export {
+.btn-export,
+.btn-filter {
     padding: 10px 20px;
     border: 2px solid white;
     border-radius: 6px;
@@ -61,9 +63,61 @@
 }
 
 .btn-analytics:hover,
-.btn-export:hover {
+.btn-export:hover,
+.btn-filter:hover {
     background: white;
     color: #667eea;
+}
+
+/* Smart Filters */
+.srv-smart-filters {
+    background: #f8f9fa;
+    padding: 20px 30px;
+    border-bottom: 2px solid #e9ecef;
+}
+
+.srv-smart-filters h3 {
+    margin: 0 0 15px 0;
+    color: #2d3748;
+}
+
+.filter-row {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 10px;
+    align-items: center;
+}
+
+.filter-row select,
+.filter-row input {
+    padding: 6px 10px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+}
+
+.filter-row input[type="number"] {
+    width: 80px;
+}
+
+.btn-remove {
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    font-size: 16px;
+}
+
+.btn-add-filter {
+    padding: 8px 16px;
+    background: #667eea;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    margin-top: 10px;
+}
+
+.btn-add-filter:hover {
+    background: #764ba2;
 }
 
 /* Pagination */
@@ -106,10 +160,11 @@
     cursor: not-allowed;
 }
 
-/* Table */
+/* Table - FIXED HEIGHT ISSUE */
 .srv-table-wrapper {
     overflow-x: auto;
-    max-height: calc(100vh - 400px);
+    /* Removed max-height restriction for better visibility */
+    min-height: 400px;
     position: relative;
 }
 
@@ -146,7 +201,17 @@
     border: 1px solid #2d3748;
 }
 
-/* Dimension Colors */
+/* Make sub-headers clickable and sortable */
+.srv-table thead tr.sub-header th.sortable {
+    cursor: pointer;
+    user-select: none;
+}
+
+.srv-table thead tr.sub-header th.sortable:hover {
+    background: #5a6578;
+}
+
+/* Dimension Colors - Using VESPA Theme */
 .dimension-group.vision-group { background: #ff8f00 !important; }
 .dimension-group.effort-group { background: #86b4f0 !important; }
 .dimension-group.systems-group { background: #72cb44 !important; }
@@ -274,6 +339,13 @@ thead .sticky-col {
     margin: 20px 0;
 }
 
+.analytics-summary {
+    margin-top: 20px;
+    padding: 15px;
+    background: #f8f9fa;
+    border-radius: 8px;
+}
+
 /* Loading */
 .srv-loading {
     display: flex;
@@ -312,6 +384,43 @@ thead .sticky-col {
     font-size: 12px;
 }
 
+/* Error */
+.srv-error {
+    text-align: center;
+    padding: 50px;
+    color: #dc3545;
+}
+
+.srv-error button {
+    margin-top: 20px;
+    padding: 10px 30px;
+    background: #667eea;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 16px;
+}
+
+/* No Results */
+.srv-no-results {
+    text-align: center;
+    padding: 50px;
+    color: #6c757d;
+    font-size: 18px;
+}
+
+/* Count */
+.srv-count {
+    font-size: 14px;
+    color: #6c757d;
+}
+
+.srv-role-info {
+    color: #667eea;
+    font-weight: 600;
+}
+
 /* Responsive */
 @media (max-width: 768px) {
     .srv-controls {
@@ -320,5 +429,9 @@ thead .sticky-col {
     
     .srv-modal-content {
         width: 95%;
+    }
+    
+    .filter-row {
+        flex-wrap: wrap;
     }
 }
