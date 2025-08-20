@@ -1,0 +1,324 @@
+/* Student Results Viewer v2.1.0 Enhanced Styles */
+
+/* Container */
+#student-results-viewer {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    padding: 20px;
+    background: #f5f7fa;
+}
+
+.srv-container {
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+    overflow: hidden;
+}
+
+/* Header */
+.srv-header {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 25px 30px;
+}
+
+.srv-header h2 {
+    margin: 0 0 20px 0;
+    font-size: 28px;
+    font-weight: 600;
+}
+
+.srv-controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    align-items: center;
+}
+
+.srv-control select,
+.srv-search {
+    padding: 8px 12px;
+    border: 1px solid rgba(255,255,255,0.3);
+    border-radius: 6px;
+    background: rgba(255,255,255,0.95);
+    color: #333;
+}
+
+.srv-actions {
+    margin-left: auto;
+    display: flex;
+    gap: 10px;
+}
+
+.btn-analytics,
+.btn-export {
+    padding: 10px 20px;
+    border: 2px solid white;
+    border-radius: 6px;
+    background: transparent;
+    color: white;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.btn-analytics:hover,
+.btn-export:hover {
+    background: white;
+    color: #667eea;
+}
+
+/* Pagination */
+.srv-pagination {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px 30px;
+    background: #f8f9fa;
+    border-bottom: 2px solid #e9ecef;
+}
+
+.srv-pagination-controls {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+.srv-page-nav {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.srv-page-nav button {
+    padding: 6px 12px;
+    border: 1px solid #ddd;
+    background: white;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.srv-page-nav button:hover:not(:disabled) {
+    background: #667eea;
+    color: white;
+}
+
+.srv-page-nav button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* Table */
+.srv-table-wrapper {
+    overflow-x: auto;
+    max-height: calc(100vh - 400px);
+    position: relative;
+}
+
+.srv-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    font-size: 14px;
+}
+
+.srv-table thead {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: white;
+}
+
+.srv-table thead tr.main-header th {
+    background: linear-gradient(180deg, #2d3748 0%, #1a202c 100%);
+    color: white;
+    padding: 12px 8px;
+    text-align: center;
+    font-weight: 600;
+    border: 1px solid #4a5568;
+}
+
+.srv-table thead tr.sub-header th {
+    background: #4a5568;
+    color: white;
+    padding: 8px;
+    text-align: center;
+    font-weight: 500;
+    font-size: 13px;
+    border: 1px solid #2d3748;
+}
+
+/* Dimension Colors */
+.dimension-group.vision-group { background: #ff8f00 !important; }
+.dimension-group.effort-group { background: #86b4f0 !important; }
+.dimension-group.systems-group { background: #72cb44 !important; }
+.dimension-group.practice-group { background: #7f31a4 !important; }
+.dimension-group.attitude-group { background: #f032e6 !important; }
+.dimension-group.overall-group { background: #2a3c7a !important; }
+
+/* Sticky Column */
+.sticky-col {
+    position: sticky;
+    left: 0;
+    background: white;
+    z-index: 5;
+}
+
+thead .sticky-col {
+    z-index: 11;
+}
+
+/* Table Body */
+.srv-table tbody tr:hover {
+    background: #f8f9fa;
+}
+
+.srv-table td {
+    padding: 10px 8px;
+    border: 1px solid #e9ecef;
+    text-align: center;
+}
+
+.student-name {
+    text-align: left !important;
+    font-weight: 500;
+    color: #2d3748;
+    min-width: 180px;
+}
+
+/* RAG Colors */
+.score-cell {
+    font-weight: 600;
+    min-width: 35px;
+}
+
+.rag-red {
+    background-color: #fee !important;
+    color: #dc3545 !important;
+}
+
+.rag-amber {
+    background-color: #fff3cd !important;
+    color: #856404 !important;
+}
+
+.rag-lightGreen {
+    background-color: #d4edda !important;
+    color: #155724 !important;
+}
+
+.rag-darkGreen {
+    background-color: #c3e6cb !important;
+    color: #0f3e18 !important;
+    font-weight: 700;
+}
+
+/* Trends */
+.trend-cell {
+    font-size: 16px;
+    font-weight: bold;
+}
+
+.trend-up { color: #28a745; }
+.trend-down { color: #dc3545; }
+.trend-same { color: #ffc107; }
+
+/* Chart Button */
+.chart-btn {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border: none;
+    border-radius: 4px;
+    padding: 4px 8px;
+    cursor: pointer;
+    font-size: 16px;
+}
+
+.chart-btn:hover {
+    transform: scale(1.2);
+}
+
+/* Modal */
+.srv-modal {
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0,0,0,0.5);
+}
+
+.srv-modal-content {
+    background-color: white;
+    margin: 5% auto;
+    padding: 30px;
+    border-radius: 12px;
+    width: 80%;
+    max-width: 800px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+}
+
+.srv-modal-close {
+    color: #aaa;
+    float: right;
+    font-size: 28px;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+.srv-modal-close:hover {
+    color: #667eea;
+}
+
+.chart-container {
+    position: relative;
+    height: 400px;
+    margin: 20px 0;
+}
+
+/* Loading */
+.srv-loading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 100px 20px;
+}
+
+.spinner {
+    border: 4px solid #f3f3f3;
+    border-top: 4px solid #667eea;
+    border-radius: 50%;
+    width: 50px;
+    height: 50px;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Sortable */
+.sortable {
+    cursor: pointer;
+    user-select: none;
+}
+
+.sortable:hover {
+    background: rgba(255,255,255,0.1) !important;
+}
+
+.sort-indicator {
+    margin-left: 5px;
+    font-size: 12px;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .srv-controls {
+        flex-direction: column;
+    }
+    
+    .srv-modal-content {
+        width: 95%;
+    }
+}

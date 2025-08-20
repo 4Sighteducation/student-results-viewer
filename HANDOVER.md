@@ -5,7 +5,7 @@
 **Developer**: 4Sight Education Ltd  
 **Application**: Vue.js-based VESPA Student Results Viewer for Knack  
 **Repository**: https://github.com/4Sighteducation/student-results-viewer
-**Current Version**: v2.0.2 (studentResultsViewer1c.js)
+**Current Version**: v2.1.0 (studentResultsViewer1e.js)
 
 ## Project Aims
 Create a comprehensive, role-based student results viewing system that:
@@ -23,7 +23,7 @@ Create a comprehensive, role-based student results viewing system that:
 - **View**: `view_3214` (Rich Text view)
 - **Integration Method**: Knack App Loader (`WorkingAppLoader1.0_12_08_25.js`)
 - **Files**: 
-  - Production: `studentResultsViewer1c.js` and `studentResultsViewer1c.css`
+  - Production: `studentResultsViewer1e.js` and `studentResultsViewer1e.css`
   - CDN: `https://cdn.jsdelivr.net/gh/4Sighteducation/student-results-viewer@main/dist/`
 
 ### Key Knack Objects & Fields
@@ -83,10 +83,16 @@ Cycle 3: field_167-172 (V, E, S, P, A, Overall)
 
 4. **UI Features**
    - RAG color coding (Red: 1-3, Amber: 4-5, Light Green: 6-8, Dark Green: 9-10)
-   - Trend indicators (↑↓↔)
+   - Trend indicators (↑↓→) for each dimension
    - Sortable columns
-   - CSV export
+   - CSV export with new column structure
    - Responsive design
+   - Pagination with customizable page size
+   - Bar chart modal for individual student progress
+   - Radar chart for group analytics
+   - Auto-hiding empty columns
+   - Sticky name column
+   - Enhanced header design with dimension grouping
 
 ### ✅ Recent Fixes (January 2025)
 
@@ -103,6 +109,17 @@ Cycle 3: field_167-172 (V, E, S, P, A, Overall)
    - Properly extracts role names from HTML spans
    - Correctly extracts establishment ID from HTML class attributes
    - Handles both raw and formatted field data
+
+4. **Major UI/UX Improvements (v2.1.0)**
+   - Restructured column layout: V1,V2,V3,VT | E1,E2,E3,ET | etc.
+   - Auto-hide empty columns for cleaner view
+   - Added pagination with customizable page size (10, 25, 50, 100, 200, All)
+   - One-click bar chart modal showing student progress across cycles
+   - Fully functional group analytics with radar chart
+   - Enhanced header visibility with gradient backgrounds
+   - Sticky name column for easy reference
+   - Improved RAG color coding
+   - Chart.js integration for visualizations
 
 2. **Large Dataset Handling**
    - API pagination works but needs optimization
@@ -222,11 +239,22 @@ For issues or questions:
 
 ## Summary
 
-The Student Results Viewer is now fully functional! All critical issues have been resolved:
+The Student Results Viewer v2.1.0 is now feature-complete with significant enhancements:
+
+**Core Functionality:**
 - ✅ Correct email field mapping (field_70) for Object_3
 - ✅ ALL users now filter by establishment first (essential with 20K+ records)
 - ✅ Staff Admin sees all establishment students
 - ✅ Other roles see their specific students within the establishment
 - ✅ Multi-role support working correctly
 
-The codebase is well-structured with clear separation of concerns and comprehensive error handling. Ready for production testing across all role types.
+**New Features (v2.1.0):**
+- ✅ Restructured table with V1,V2,V3,VT column grouping
+- ✅ Pagination with customizable page sizes
+- ✅ Interactive bar charts for student progress
+- ✅ Group analytics with radar charts
+- ✅ Auto-hiding empty columns
+- ✅ Enhanced UI with gradient headers and sticky columns
+- ✅ Chart.js integration for beautiful visualizations
+
+The codebase is well-structured with clear separation of concerns, comprehensive error handling, and a modern, professional UI. Ready for production deployment!

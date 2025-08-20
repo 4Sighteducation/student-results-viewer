@@ -1,15 +1,15 @@
 /**
- * Student Results Viewer v2.0.3
- * Production build with jQuery Promise fix
+ * Student Results Viewer v2.1.0
+ * Major UI/UX improvements with charts and analytics
  * Copyright 2025 4Sight Education Ltd
  * 
- * FIXES APPLIED:
- * - Corrected user profile location (Object_3)
- * - Fixed establishment filtering via Object_3 field_122
- * - Handle many-to-many staff connections (arrays)
- * - Enhanced role detection from field_73
- * - Parse HTML responses from Knack API
- * - Fixed jQuery Promise handling (.fail instead of .catch)
+ * NEW FEATURES:
+ * - Restructured column layout (V1,V2,V3,VT, E1,E2,E3,ET, etc.)
+ * - Hide empty columns automatically
+ * - Pagination with customizable page size
+ * - Bar chart modal for student progression
+ * - Group analytics implementation
+ * - Improved header visibility
  */
 
 // Debug mode flag - SET TO TRUE FOR TROUBLESHOOTING
@@ -133,6 +133,20 @@ window.STUDENT_RESULTS_CONFIG = { FIELD_MAPPINGS, RAG_CONFIG, THEME_CONFIG, getR
 (function() {
     'use strict';
 
+    // Load Chart.js if not already loaded
+    function loadChartJS() {
+        return new Promise((resolve) => {
+            if (typeof Chart !== 'undefined') {
+                resolve();
+            } else {
+                const script = document.createElement('script');
+                script.src = 'https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js';
+                script.onload = () => resolve();
+                document.head.appendChild(script);
+            }
+        });
+    }
+
     function waitForConfig(callback, maxAttempts = 50) {
         let attempts = 0;
         const checkConfig = setInterval(() => {
@@ -149,9 +163,12 @@ window.STUDENT_RESULTS_CONFIG = { FIELD_MAPPINGS, RAG_CONFIG, THEME_CONFIG, getR
     }
 
     window.initializeStudentResultsViewer = function() {
-        console.log('[Student Results Viewer] Initializing v2.0.3...');
+        console.log('[Student Results Viewer] Initializing v2.1.0...');
 
-        waitForConfig((config) => {
+        waitForConfig(async (config) => {
+            // Load Chart.js first
+            await loadChartJS();
+            
             if (typeof Vue === 'undefined') {
                 const script = document.createElement('script');
                 script.src = 'https://cdn.jsdelivr.net/npm/vue@3.3.4/dist/vue.global.prod.js';
@@ -164,10 +181,10 @@ window.STUDENT_RESULTS_CONFIG = { FIELD_MAPPINGS, RAG_CONFIG, THEME_CONFIG, getR
     };
 
     function initializeApp(config) {
-        console.log('[Student Results Viewer] Vue loaded, initializing app...');
+        console.log('[Student Results Viewer] Vue and Chart.js loaded, initializing app...');
         
         const { FIELD_MAPPINGS, RAG_CONFIG, THEME_CONFIG, getRagRating } = window.STUDENT_RESULTS_CONFIG || {};
-        const { createApp, ref, computed, onMounted, watch } = Vue;
+        const { createApp, ref, computed, onMounted, watch, nextTick } = Vue;
 
         // Helper function to parse HTML from Knack fields
         function parseKnackHTML(htmlString) {
@@ -208,6 +225,7 @@ window.STUDENT_RESULTS_CONFIG = { FIELD_MAPPINGS, RAG_CONFIG, THEME_CONFIG, getR
             setup() {
                 const students = ref([]);
                 const filteredStudents = ref([]);
+                const paginatedStudents = ref([]);
                 const loading = ref(true);
                 const error = ref(null);
                 const currentUser = ref(null);
@@ -222,6 +240,18 @@ window.STUDENT_RESULTS_CONFIG = { FIELD_MAPPINGS, RAG_CONFIG, THEME_CONFIG, getR
                 const showGroupAnalytics = ref(false);
                 const selectedStudent = ref(null);
                 const hoveredStudent = ref(null);
+                const showChartModal = ref(false);
+                const chartStudent = ref(null);
+                const chartInstance = ref(null);
+                const groupChartInstance = ref(null);
+                
+                // Pagination
+                const currentPage = ref(1);
+                const pageSize = ref(50);
+                const pageSizeOptions = [10, 25, 50, 100, 200, 'All'];
+
+                // Column visibility tracking
+                const visibleColumns = ref({});
 
                 const yearGroups = computed(() => {
                     const groups = [...new Set(students.value.map(s => s.yearGroup))].filter(Boolean);
@@ -236,6 +266,11 @@ window.STUDENT_RESULTS_CONFIG = { FIELD_MAPPINGS, RAG_CONFIG, THEME_CONFIG, getR
                 const groups = computed(() => {
                     const grps = [...new Set(students.value.map(s => s.group))].filter(Boolean);
                     return grps.sort();
+                });
+
+                const totalPages = computed(() => {
+                    if (pageSize.value === 'All') return 1;
+                    return Math.ceil(filteredStudents.value.length / pageSize.value);
                 });
 
                 const availableRoles = computed(() => {
@@ -603,6 +638,7 @@ window.STUDENT_RESULTS_CONFIG = { FIELD_MAPPINGS, RAG_CONFIG, THEME_CONFIG, getR
                         console.log(`[Student Results Viewer] Total fetched: ${allRecords.length} student records`);
                         students.value = processStudentData(allRecords);
                         applyFiltersAndSort();
+                        updateColumnVisibility();
 
                     } catch (err) {
                         console.error('[Student Results Viewer] Error fetching data:', err);
@@ -716,6 +752,27 @@ window.STUDENT_RESULTS_CONFIG = { FIELD_MAPPINGS, RAG_CONFIG, THEME_CONFIG, getR
                     return trends;
                 };
 
+                const updateColumnVisibility = () => {
+                    const dimensions = ['vision', 'effort', 'systems', 'practice', 'attitude', 'overall'];
+                    const newVisibility = {};
+                    
+                    dimensions.forEach(dim => {
+                        // Check each cycle for this dimension
+                        for (let cycle = 1; cycle <= 3; cycle++) {
+                            const key = `${dim}_${cycle}`;
+                            newVisibility[key] = filteredStudents.value.some(s => 
+                                s.cycles[cycle] && s.cycles[cycle][dim] !== null
+                            );
+                        }
+                        // Check if trend column should be visible (if any cycle has data)
+                        newVisibility[`${dim}_trend`] = newVisibility[`${dim}_1`] || 
+                                                       newVisibility[`${dim}_2`] || 
+                                                       newVisibility[`${dim}_3`];
+                    });
+                    
+                    visibleColumns.value = newVisibility;
+                };
+
                 const applyFiltersAndSort = () => {
                     let filtered = [...students.value];
                     
@@ -768,6 +825,23 @@ window.STUDENT_RESULTS_CONFIG = { FIELD_MAPPINGS, RAG_CONFIG, THEME_CONFIG, getR
                     });
                     
                     filteredStudents.value = filtered;
+                    updatePagination();
+                    updateColumnVisibility();
+                };
+
+                const updatePagination = () => {
+                    if (pageSize.value === 'All') {
+                        paginatedStudents.value = filteredStudents.value;
+                    } else {
+                        const start = (currentPage.value - 1) * pageSize.value;
+                        const end = start + parseInt(pageSize.value);
+                        paginatedStudents.value = filteredStudents.value.slice(start, end);
+                    }
+                };
+
+                const handlePageSizeChange = () => {
+                    currentPage.value = 1;
+                    updatePagination();
                 };
 
                 const handleSort = (field) => {
@@ -780,17 +854,173 @@ window.STUDENT_RESULTS_CONFIG = { FIELD_MAPPINGS, RAG_CONFIG, THEME_CONFIG, getR
                     applyFiltersAndSort();
                 };
 
+                const showStudentChart = (student) => {
+                    chartStudent.value = student;
+                    showChartModal.value = true;
+                    
+                    nextTick(() => {
+                        createStudentChart(student);
+                    });
+                };
+
+                const createStudentChart = (student) => {
+                    const canvas = document.getElementById('studentChart');
+                    if (!canvas) return;
+                    
+                    // Destroy existing chart if any
+                    if (chartInstance.value) {
+                        chartInstance.value.destroy();
+                    }
+                    
+                    const dimensions = ['vision', 'effort', 'systems', 'practice', 'attitude', 'overall'];
+                    const datasets = [];
+                    const labels = dimensions.map(d => THEME_CONFIG.vespaLabels[d.charAt(0).toUpperCase()] || d);
+                    
+                    // Create dataset for each cycle
+                    for (let cycle = 1; cycle <= 3; cycle++) {
+                        if (student.cycles[cycle]) {
+                            const data = dimensions.map(d => student.cycles[cycle][d] || 0);
+                            datasets.push({
+                                label: `Cycle ${cycle}`,
+                                data: data,
+                                backgroundColor: cycle === 1 ? 'rgba(255, 99, 132, 0.5)' :
+                                                cycle === 2 ? 'rgba(54, 162, 235, 0.5)' :
+                                                'rgba(75, 192, 192, 0.5)',
+                                borderColor: cycle === 1 ? 'rgb(255, 99, 132)' :
+                                           cycle === 2 ? 'rgb(54, 162, 235)' :
+                                           'rgb(75, 192, 192)',
+                                borderWidth: 2
+                            });
+                        }
+                    }
+                    
+                    chartInstance.value = new Chart(canvas, {
+                        type: 'bar',
+                        data: {
+                            labels: labels,
+                            datasets: datasets
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: {
+                                    position: 'top',
+                                },
+                                title: {
+                                    display: true,
+                                    text: `${student.name} - VESPA Progress`
+                                }
+                            },
+                            scales: {
+                                y: {
+                                    beginAtZero: true,
+                                    max: 10,
+                                    ticks: {
+                                        stepSize: 1
+                                    }
+                                }
+                            }
+                        }
+                    });
+                };
+
+                const toggleGroupAnalytics = () => {
+                    showGroupAnalytics.value = !showGroupAnalytics.value;
+                    
+                    if (showGroupAnalytics.value) {
+                        nextTick(() => {
+                            createGroupAnalyticsChart();
+                        });
+                    }
+                };
+
+                const createGroupAnalyticsChart = () => {
+                    const canvas = document.getElementById('groupChart');
+                    if (!canvas) return;
+                    
+                    // Destroy existing chart if any
+                    if (groupChartInstance.value) {
+                        groupChartInstance.value.destroy();
+                    }
+                    
+                    const dimensions = ['vision', 'effort', 'systems', 'practice', 'attitude', 'overall'];
+                    const labels = dimensions.map(d => THEME_CONFIG.vespaLabels[d.charAt(0).toUpperCase()] || d);
+                    const datasets = [];
+                    
+                    // Calculate averages for each cycle
+                    for (let cycle = 1; cycle <= 3; cycle++) {
+                        const averages = dimensions.map(dim => {
+                            const scores = filteredStudents.value
+                                .map(s => s.cycles[cycle]?.[dim])
+                                .filter(v => v !== null && v !== undefined);
+                            
+                            if (scores.length > 0) {
+                                return Math.round((scores.reduce((a, b) => a + b, 0) / scores.length) * 10) / 10;
+                            }
+                            return 0;
+                        });
+                        
+                        if (averages.some(v => v > 0)) {
+                            datasets.push({
+                                label: `Cycle ${cycle} Average`,
+                                data: averages,
+                                backgroundColor: cycle === 1 ? 'rgba(255, 99, 132, 0.5)' :
+                                                cycle === 2 ? 'rgba(54, 162, 235, 0.5)' :
+                                                'rgba(75, 192, 192, 0.5)',
+                                borderColor: cycle === 1 ? 'rgb(255, 99, 132)' :
+                                           cycle === 2 ? 'rgb(54, 162, 235)' :
+                                           'rgb(75, 192, 192)',
+                                borderWidth: 2
+                            });
+                        }
+                    }
+                    
+                    groupChartInstance.value = new Chart(canvas, {
+                        type: 'radar',
+                        data: {
+                            labels: labels,
+                            datasets: datasets
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: {
+                                    position: 'top',
+                                },
+                                title: {
+                                    display: true,
+                                    text: `Group Average Scores (${filteredStudents.value.length} students)`
+                                }
+                            },
+                            scales: {
+                                r: {
+                                    beginAtZero: true,
+                                    max: 10,
+                                    ticks: {
+                                        stepSize: 2
+                                    }
+                                }
+                            }
+                        }
+                    });
+                };
+
                 const exportToCSV = () => {
                     console.log('[Student Results Viewer] Exporting to CSV...');
                     
                     // Build headers
                     const headers = ['Name', 'Email', 'Group', 'Year Group', 'Faculty'];
+                    const dimensions = ['vision', 'effort', 'systems', 'practice', 'attitude', 'overall'];
                     
-                    // Add cycle headers
-                    for (let cycle = 1; cycle <= 3; cycle++) {
-                        headers.push(`C${cycle} Vision`, `C${cycle} Effort`, `C${cycle} Systems`, 
-                                    `C${cycle} Practice`, `C${cycle} Attitude`, `C${cycle} Overall`);
-                    }
+                    // Add headers in new order: V1,V2,V3, E1,E2,E3, etc.
+                    dimensions.forEach(dim => {
+                        const label = dim.charAt(0).toUpperCase();
+                        for (let cycle = 1; cycle <= 3; cycle++) {
+                            headers.push(`${label}${cycle}`);
+                        }
+                    });
                     
                     // Build rows
                     const rows = filteredStudents.value.map(student => {
@@ -802,18 +1032,12 @@ window.STUDENT_RESULTS_CONFIG = { FIELD_MAPPINGS, RAG_CONFIG, THEME_CONFIG, getR
                             student.faculty || ''
                         ];
                         
-                        // Add cycle data
-                        for (let cycle = 1; cycle <= 3; cycle++) {
-                            const cycleData = student.cycles[cycle] || {};
-                            row.push(
-                                cycleData.vision || '',
-                                cycleData.effort || '',
-                                cycleData.systems || '',
-                                cycleData.practice || '',
-                                cycleData.attitude || '',
-                                cycleData.overall || ''
-                            );
-                        }
+                        // Add scores in new order
+                        dimensions.forEach(dim => {
+                            for (let cycle = 1; cycle <= 3; cycle++) {
+                                row.push(student.cycles[cycle]?.[dim] || '');
+                            }
+                        });
                         
                         return row;
                     });
@@ -841,47 +1065,13 @@ window.STUDENT_RESULTS_CONFIG = { FIELD_MAPPINGS, RAG_CONFIG, THEME_CONFIG, getR
                     console.log('[Student Results Viewer] CSV exported successfully');
                 };
 
-                const showStudentProgress = (student) => {
-                    selectedStudent.value = student;
-                    // TODO: Implement progress chart modal
-                    console.log('[Student Results Viewer] Progress charts coming soon for:', student.name);
-                    alert(`Progress charts coming soon!\n\nStudent: ${student.name}\nCycles completed: ${Object.keys(student.cycles).length}`);
-                };
-
-                const toggleGroupAnalytics = () => {
-                    showGroupAnalytics.value = !showGroupAnalytics.value;
-                    // TODO: Implement group analytics modal
-                    if (showGroupAnalytics.value) {
-                        const avgScores = calculateGroupAverages();
-                        console.log('[Student Results Viewer] Group analytics:', avgScores);
-                        alert(`Group Analytics (Coming Soon!)\n\nTotal Students: ${filteredStudents.value.length}\n\nFeatures to be added:\n- Average scores by dimension\n- Distribution charts\n- Trend analysis\n- Export reports`);
-                    }
-                };
-
-                const calculateGroupAverages = () => {
-                    // TODO: Implement proper group analytics
-                    const dimensions = ['vision', 'effort', 'systems', 'practice', 'attitude', 'overall'];
-                    const averages = {};
-                    
-                    for (let cycle = 1; cycle <= 3; cycle++) {
-                        averages[`cycle${cycle}`] = {};
-                        dimensions.forEach(dim => {
-                            const scores = filteredStudents.value
-                                .map(s => s.cycles[cycle]?.[dim])
-                                .filter(v => v !== null && v !== undefined);
-                            
-                            if (scores.length > 0) {
-                                const avg = scores.reduce((a, b) => a + b, 0) / scores.length;
-                                averages[`cycle${cycle}`][dim] = Math.round(avg * 10) / 10;
-                            }
-                        });
-                    }
-                    
-                    return averages;
-                };
-
                 watch([selectedRole, searchQuery, selectedYearGroup, selectedFaculty, selectedGroup], () => {
+                    currentPage.value = 1;
                     applyFiltersAndSort();
+                });
+
+                watch([currentPage, pageSize], () => {
+                    updatePagination();
                 });
 
                 onMounted(() => {
@@ -891,6 +1081,7 @@ window.STUDENT_RESULTS_CONFIG = { FIELD_MAPPINGS, RAG_CONFIG, THEME_CONFIG, getR
                 return {
                     students,
                     filteredStudents,
+                    paginatedStudents,
                     loading,
                     error,
                     currentUser,
@@ -905,18 +1096,26 @@ window.STUDENT_RESULTS_CONFIG = { FIELD_MAPPINGS, RAG_CONFIG, THEME_CONFIG, getR
                     showGroupAnalytics,
                     selectedStudent,
                     hoveredStudent,
+                    showChartModal,
+                    chartStudent,
                     yearGroups,
                     faculties,
                     groups,
                     availableRoles,
+                    visibleColumns,
+                    currentPage,
+                    pageSize,
+                    pageSizeOptions,
+                    totalPages,
                     handleSort,
                     exportToCSV,
-                    showStudentProgress,
+                    showStudentChart,
                     toggleGroupAnalytics,
                     getRagRating,
                     RAG_CONFIG,
                     THEME_CONFIG,
-                    fetchStudentResults
+                    fetchStudentResults,
+                    handlePageSizeChange
                 };
             },
             
@@ -993,116 +1192,299 @@ window.STUDENT_RESULTS_CONFIG = { FIELD_MAPPINGS, RAG_CONFIG, THEME_CONFIG, getR
                             </div>
                         </div>
                         
-                        <div class="srv-count">
-                            Showing {{ filteredStudents.length }} of {{ students.length }} students
-                            <span v-if="userRoles.length > 0" class="srv-role-info">
-                                ({{ userRoles.join(', ') }})
-                            </span>
+                        <div class="srv-pagination">
+                            <div class="srv-count">
+                                Showing {{ paginatedStudents.length }} of {{ filteredStudents.length }} students
+                                <span v-if="userRoles.length > 0" class="srv-role-info">
+                                    ({{ userRoles.join(', ') }})
+                                </span>
+                            </div>
+                            
+                            <div class="srv-pagination-controls">
+                                <label>Show:</label>
+                                <select v-model="pageSize" @change="handlePageSizeChange">
+                                    <option v-for="size in pageSizeOptions" :key="size" :value="size">
+                                        {{ size }}
+                                    </option>
+                                </select>
+                                
+                                <div v-if="totalPages > 1" class="srv-page-nav">
+                                    <button 
+                                        @click="currentPage = Math.max(1, currentPage - 1)"
+                                        :disabled="currentPage === 1">
+                                        ←
+                                    </button>
+                                    <span>Page {{ currentPage }} of {{ totalPages }}</span>
+                                    <button 
+                                        @click="currentPage = Math.min(totalPages, currentPage + 1)"
+                                        :disabled="currentPage === totalPages">
+                                        →
+                                    </button>
+                                </div>
+                            </div>
                         </div>
                         
                         <div class="srv-table-wrapper">
                             <table class="srv-table">
                                 <thead>
-                                    <tr>
-                                        <th @click="handleSort('name')" class="sortable">
+                                    <tr class="main-header">
+                                        <th rowspan="2" @click="handleSort('name')" class="sortable sticky-col">
                                             Name 
                                             <span class="sort-indicator" v-if="sortField === 'name'">
                                                 {{ sortDirection === 'asc' ? '▲' : '▼' }}
                                             </span>
                                         </th>
-                                        <th @click="handleSort('group')" class="sortable">
+                                        <th rowspan="2" @click="handleSort('group')" class="sortable">
                                             Group
                                             <span class="sort-indicator" v-if="sortField === 'group'">
                                                 {{ sortDirection === 'asc' ? '▲' : '▼' }}
                                             </span>
                                         </th>
                                         
-                                        <th colspan="7" class="cycle-header">Cycle 1</th>
-                                        <th colspan="7" class="cycle-header">Cycle 2</th>
-                                        <th colspan="7" class="cycle-header">Cycle 3</th>
+                                        <!-- Vision columns -->
+                                        <th v-if="visibleColumns['vision_1'] || visibleColumns['vision_2'] || visibleColumns['vision_3']" 
+                                            :colspan="(visibleColumns['vision_1'] ? 1 : 0) + (visibleColumns['vision_2'] ? 1 : 0) + (visibleColumns['vision_3'] ? 1 : 0) + (visibleColumns['vision_trend'] ? 1 : 0)" 
+                                            class="dimension-group vision-group">
+                                            Vision
+                                        </th>
+                                        
+                                        <!-- Effort columns -->
+                                        <th v-if="visibleColumns['effort_1'] || visibleColumns['effort_2'] || visibleColumns['effort_3']" 
+                                            :colspan="(visibleColumns['effort_1'] ? 1 : 0) + (visibleColumns['effort_2'] ? 1 : 0) + (visibleColumns['effort_3'] ? 1 : 0) + (visibleColumns['effort_trend'] ? 1 : 0)" 
+                                            class="dimension-group effort-group">
+                                            Effort
+                                        </th>
+                                        
+                                        <!-- Systems columns -->
+                                        <th v-if="visibleColumns['systems_1'] || visibleColumns['systems_2'] || visibleColumns['systems_3']" 
+                                            :colspan="(visibleColumns['systems_1'] ? 1 : 0) + (visibleColumns['systems_2'] ? 1 : 0) + (visibleColumns['systems_3'] ? 1 : 0) + (visibleColumns['systems_trend'] ? 1 : 0)" 
+                                            class="dimension-group systems-group">
+                                            Systems
+                                        </th>
+                                        
+                                        <!-- Practice columns -->
+                                        <th v-if="visibleColumns['practice_1'] || visibleColumns['practice_2'] || visibleColumns['practice_3']" 
+                                            :colspan="(visibleColumns['practice_1'] ? 1 : 0) + (visibleColumns['practice_2'] ? 1 : 0) + (visibleColumns['practice_3'] ? 1 : 0) + (visibleColumns['practice_trend'] ? 1 : 0)" 
+                                            class="dimension-group practice-group">
+                                            Practice
+                                        </th>
+                                        
+                                        <!-- Attitude columns -->
+                                        <th v-if="visibleColumns['attitude_1'] || visibleColumns['attitude_2'] || visibleColumns['attitude_3']" 
+                                            :colspan="(visibleColumns['attitude_1'] ? 1 : 0) + (visibleColumns['attitude_2'] ? 1 : 0) + (visibleColumns['attitude_3'] ? 1 : 0) + (visibleColumns['attitude_trend'] ? 1 : 0)" 
+                                            class="dimension-group attitude-group">
+                                            Attitude
+                                        </th>
+                                        
+                                        <!-- Overall columns -->
+                                        <th v-if="visibleColumns['overall_1'] || visibleColumns['overall_2'] || visibleColumns['overall_3']" 
+                                            :colspan="(visibleColumns['overall_1'] ? 1 : 0) + (visibleColumns['overall_2'] ? 1 : 0) + (visibleColumns['overall_3'] ? 1 : 0) + (visibleColumns['overall_trend'] ? 1 : 0)" 
+                                            class="dimension-group overall-group">
+                                            Overall
+                                        </th>
+                                        
+                                        <th rowspan="2" class="chart-col">📊</th>
                                     </tr>
-                                    <tr>
-                                        <th></th>
-                                        <th></th>
+                                    <tr class="sub-header">
+                                        <!-- Vision sub-headers -->
+                                        <th v-if="visibleColumns['vision_1']" class="cycle-header">V1</th>
+                                        <th v-if="visibleColumns['vision_2']" class="cycle-header">V2</th>
+                                        <th v-if="visibleColumns['vision_3']" class="cycle-header">V3</th>
+                                        <th v-if="visibleColumns['vision_trend']" class="trend-header">VT</th>
                                         
-                                        <th class="dimension-header sortable" @click="handleSort('cycle1_vision')" title="Vision">V1</th>
-                                        <th class="dimension-header sortable" @click="handleSort('cycle1_effort')" title="Effort">E1</th>
-                                        <th class="dimension-header sortable" @click="handleSort('cycle1_systems')" title="Systems">S1</th>
-                                        <th class="dimension-header sortable" @click="handleSort('cycle1_practice')" title="Practice">P1</th>
-                                        <th class="dimension-header sortable" @click="handleSort('cycle1_attitude')" title="Attitude">A1</th>
-                                        <th class="dimension-header sortable" @click="handleSort('cycle1_overall')" title="Overall">O1</th>
-                                        <th class="trend-header" title="Trend">T</th>
+                                        <!-- Effort sub-headers -->
+                                        <th v-if="visibleColumns['effort_1']" class="cycle-header">E1</th>
+                                        <th v-if="visibleColumns['effort_2']" class="cycle-header">E2</th>
+                                        <th v-if="visibleColumns['effort_3']" class="cycle-header">E3</th>
+                                        <th v-if="visibleColumns['effort_trend']" class="trend-header">ET</th>
                                         
-                                        <th class="dimension-header sortable" @click="handleSort('cycle2_vision')" title="Vision">V2</th>
-                                        <th class="dimension-header sortable" @click="handleSort('cycle2_effort')" title="Effort">E2</th>
-                                        <th class="dimension-header sortable" @click="handleSort('cycle2_systems')" title="Systems">S2</th>
-                                        <th class="dimension-header sortable" @click="handleSort('cycle2_practice')" title="Practice">P2</th>
-                                        <th class="dimension-header sortable" @click="handleSort('cycle2_attitude')" title="Attitude">A2</th>
-                                        <th class="dimension-header sortable" @click="handleSort('cycle2_overall')" title="Overall">O2</th>
-                                        <th class="trend-header" title="Trend">T</th>
+                                        <!-- Systems sub-headers -->
+                                        <th v-if="visibleColumns['systems_1']" class="cycle-header">S1</th>
+                                        <th v-if="visibleColumns['systems_2']" class="cycle-header">S2</th>
+                                        <th v-if="visibleColumns['systems_3']" class="cycle-header">S3</th>
+                                        <th v-if="visibleColumns['systems_trend']" class="trend-header">ST</th>
                                         
-                                        <th class="dimension-header sortable" @click="handleSort('cycle3_vision')" title="Vision">V3</th>
-                                        <th class="dimension-header sortable" @click="handleSort('cycle3_effort')" title="Effort">E3</th>
-                                        <th class="dimension-header sortable" @click="handleSort('cycle3_systems')" title="Systems">S3</th>
-                                        <th class="dimension-header sortable" @click="handleSort('cycle3_practice')" title="Practice">P3</th>
-                                        <th class="dimension-header sortable" @click="handleSort('cycle3_attitude')" title="Attitude">A3</th>
-                                        <th class="dimension-header sortable" @click="handleSort('cycle3_overall')" title="Overall">O3</th>
-                                        <th class="trend-header" title="Trend">T</th>
+                                        <!-- Practice sub-headers -->
+                                        <th v-if="visibleColumns['practice_1']" class="cycle-header">P1</th>
+                                        <th v-if="visibleColumns['practice_2']" class="cycle-header">P2</th>
+                                        <th v-if="visibleColumns['practice_3']" class="cycle-header">P3</th>
+                                        <th v-if="visibleColumns['practice_trend']" class="trend-header">PT</th>
+                                        
+                                        <!-- Attitude sub-headers -->
+                                        <th v-if="visibleColumns['attitude_1']" class="cycle-header">A1</th>
+                                        <th v-if="visibleColumns['attitude_2']" class="cycle-header">A2</th>
+                                        <th v-if="visibleColumns['attitude_3']" class="cycle-header">A3</th>
+                                        <th v-if="visibleColumns['attitude_trend']" class="trend-header">AT</th>
+                                        
+                                        <!-- Overall sub-headers -->
+                                        <th v-if="visibleColumns['overall_1']" class="cycle-header">O1</th>
+                                        <th v-if="visibleColumns['overall_2']" class="cycle-header">O2</th>
+                                        <th v-if="visibleColumns['overall_3']" class="cycle-header">O3</th>
+                                        <th v-if="visibleColumns['overall_trend']" class="trend-header">OT</th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    <tr v-for="student in filteredStudents" 
+                                    <tr v-for="student in paginatedStudents" 
                                         :key="student.id"
-                                        @click="showStudentProgress(student)"
                                         @mouseenter="hoveredStudent = student"
                                         @mouseleave="hoveredStudent = null"
                                         class="student-row">
                                         
-                                        <td class="student-name" :title="student.email">{{ student.name }}</td>
+                                        <td class="student-name sticky-col" :title="student.email">{{ student.name }}</td>
                                         <td class="student-group">{{ student.group }}</td>
                                         
-                                        <!-- Cycle 1 -->
-                                        <td v-for="dim in ['vision', 'effort', 'systems', 'practice', 'attitude', 'overall']"
-                                            :key="'c1-' + dim"
-                                            :class="['score-cell', getRagRating(student.cycles[1]?.[dim]) ? 'rag-' + getRagRating(student.cycles[1]?.[dim]) : '']">
-                                            {{ student.cycles[1]?.[dim] || '-' }}
+                                        <!-- Vision scores -->
+                                        <td v-if="visibleColumns['vision_1']" 
+                                            :class="['score-cell', getRagRating(student.cycles[1]?.vision) ? 'rag-' + getRagRating(student.cycles[1]?.vision) : '']">
+                                            {{ student.cycles[1]?.vision || '-' }}
                                         </td>
-                                        <td class="trend-cell">
-                                            <span v-if="student.trends.overall === 'up'" class="trend-up">↑</span>
-                                            <span v-else-if="student.trends.overall === 'down'" class="trend-down">↓</span>
-                                            <span v-else-if="student.trends.overall === 'same'" class="trend-same">↔</span>
+                                        <td v-if="visibleColumns['vision_2']" 
+                                            :class="['score-cell', getRagRating(student.cycles[2]?.vision) ? 'rag-' + getRagRating(student.cycles[2]?.vision) : '']">
+                                            {{ student.cycles[2]?.vision || '-' }}
                                         </td>
-                                        
-                                        <!-- Cycle 2 -->
-                                        <td v-for="dim in ['vision', 'effort', 'systems', 'practice', 'attitude', 'overall']"
-                                            :key="'c2-' + dim"
-                                            :class="['score-cell', getRagRating(student.cycles[2]?.[dim]) ? 'rag-' + getRagRating(student.cycles[2]?.[dim]) : '']">
-                                            {{ student.cycles[2]?.[dim] || '-' }}
+                                        <td v-if="visibleColumns['vision_3']" 
+                                            :class="['score-cell', getRagRating(student.cycles[3]?.vision) ? 'rag-' + getRagRating(student.cycles[3]?.vision) : '']">
+                                            {{ student.cycles[3]?.vision || '-' }}
                                         </td>
-                                        <td class="trend-cell">
-                                            <span v-if="student.trends.overall === 'up'" class="trend-up">↑</span>
-                                            <span v-else-if="student.trends.overall === 'down'" class="trend-down">↓</span>
-                                            <span v-else-if="student.trends.overall === 'same'" class="trend-same">↔</span>
+                                        <td v-if="visibleColumns['vision_trend']" class="trend-cell">
+                                            <span v-if="student.trends.vision === 'up'" class="trend-up">↑</span>
+                                            <span v-else-if="student.trends.vision === 'down'" class="trend-down">↓</span>
+                                            <span v-else-if="student.trends.vision === 'same'" class="trend-same">→</span>
                                         </td>
                                         
-                                        <!-- Cycle 3 -->
-                                        <td v-for="dim in ['vision', 'effort', 'systems', 'practice', 'attitude', 'overall']"
-                                            :key="'c3-' + dim"
-                                            :class="['score-cell', getRagRating(student.cycles[3]?.[dim]) ? 'rag-' + getRagRating(student.cycles[3]?.[dim]) : '']">
-                                            {{ student.cycles[3]?.[dim] || '-' }}
+                                        <!-- Effort scores -->
+                                        <td v-if="visibleColumns['effort_1']" 
+                                            :class="['score-cell', getRagRating(student.cycles[1]?.effort) ? 'rag-' + getRagRating(student.cycles[1]?.effort) : '']">
+                                            {{ student.cycles[1]?.effort || '-' }}
                                         </td>
-                                        <td class="trend-cell">
+                                        <td v-if="visibleColumns['effort_2']" 
+                                            :class="['score-cell', getRagRating(student.cycles[2]?.effort) ? 'rag-' + getRagRating(student.cycles[2]?.effort) : '']">
+                                            {{ student.cycles[2]?.effort || '-' }}
+                                        </td>
+                                        <td v-if="visibleColumns['effort_3']" 
+                                            :class="['score-cell', getRagRating(student.cycles[3]?.effort) ? 'rag-' + getRagRating(student.cycles[3]?.effort) : '']">
+                                            {{ student.cycles[3]?.effort || '-' }}
+                                        </td>
+                                        <td v-if="visibleColumns['effort_trend']" class="trend-cell">
+                                            <span v-if="student.trends.effort === 'up'" class="trend-up">↑</span>
+                                            <span v-else-if="student.trends.effort === 'down'" class="trend-down">↓</span>
+                                            <span v-else-if="student.trends.effort === 'same'" class="trend-same">→</span>
+                                        </td>
+                                        
+                                        <!-- Systems scores -->
+                                        <td v-if="visibleColumns['systems_1']" 
+                                            :class="['score-cell', getRagRating(student.cycles[1]?.systems) ? 'rag-' + getRagRating(student.cycles[1]?.systems) : '']">
+                                            {{ student.cycles[1]?.systems || '-' }}
+                                        </td>
+                                        <td v-if="visibleColumns['systems_2']" 
+                                            :class="['score-cell', getRagRating(student.cycles[2]?.systems) ? 'rag-' + getRagRating(student.cycles[2]?.systems) : '']">
+                                            {{ student.cycles[2]?.systems || '-' }}
+                                        </td>
+                                        <td v-if="visibleColumns['systems_3']" 
+                                            :class="['score-cell', getRagRating(student.cycles[3]?.systems) ? 'rag-' + getRagRating(student.cycles[3]?.systems) : '']">
+                                            {{ student.cycles[3]?.systems || '-' }}
+                                        </td>
+                                        <td v-if="visibleColumns['systems_trend']" class="trend-cell">
+                                            <span v-if="student.trends.systems === 'up'" class="trend-up">↑</span>
+                                            <span v-else-if="student.trends.systems === 'down'" class="trend-down">↓</span>
+                                            <span v-else-if="student.trends.systems === 'same'" class="trend-same">→</span>
+                                        </td>
+                                        
+                                        <!-- Practice scores -->
+                                        <td v-if="visibleColumns['practice_1']" 
+                                            :class="['score-cell', getRagRating(student.cycles[1]?.practice) ? 'rag-' + getRagRating(student.cycles[1]?.practice) : '']">
+                                            {{ student.cycles[1]?.practice || '-' }}
+                                        </td>
+                                        <td v-if="visibleColumns['practice_2']" 
+                                            :class="['score-cell', getRagRating(student.cycles[2]?.practice) ? 'rag-' + getRagRating(student.cycles[2]?.practice) : '']">
+                                            {{ student.cycles[2]?.practice || '-' }}
+                                        </td>
+                                        <td v-if="visibleColumns['practice_3']" 
+                                            :class="['score-cell', getRagRating(student.cycles[3]?.practice) ? 'rag-' + getRagRating(student.cycles[3]?.practice) : '']">
+                                            {{ student.cycles[3]?.practice || '-' }}
+                                        </td>
+                                        <td v-if="visibleColumns['practice_trend']" class="trend-cell">
+                                            <span v-if="student.trends.practice === 'up'" class="trend-up">↑</span>
+                                            <span v-else-if="student.trends.practice === 'down'" class="trend-down">↓</span>
+                                            <span v-else-if="student.trends.practice === 'same'" class="trend-same">→</span>
+                                        </td>
+                                        
+                                        <!-- Attitude scores -->
+                                        <td v-if="visibleColumns['attitude_1']" 
+                                            :class="['score-cell', getRagRating(student.cycles[1]?.attitude) ? 'rag-' + getRagRating(student.cycles[1]?.attitude) : '']">
+                                            {{ student.cycles[1]?.attitude || '-' }}
+                                        </td>
+                                        <td v-if="visibleColumns['attitude_2']" 
+                                            :class="['score-cell', getRagRating(student.cycles[2]?.attitude) ? 'rag-' + getRagRating(student.cycles[2]?.attitude) : '']">
+                                            {{ student.cycles[2]?.attitude || '-' }}
+                                        </td>
+                                        <td v-if="visibleColumns['attitude_3']" 
+                                            :class="['score-cell', getRagRating(student.cycles[3]?.attitude) ? 'rag-' + getRagRating(student.cycles[3]?.attitude) : '']">
+                                            {{ student.cycles[3]?.attitude || '-' }}
+                                        </td>
+                                        <td v-if="visibleColumns['attitude_trend']" class="trend-cell">
+                                            <span v-if="student.trends.attitude === 'up'" class="trend-up">↑</span>
+                                            <span v-else-if="student.trends.attitude === 'down'" class="trend-down">↓</span>
+                                            <span v-else-if="student.trends.attitude === 'same'" class="trend-same">→</span>
+                                        </td>
+                                        
+                                        <!-- Overall scores -->
+                                        <td v-if="visibleColumns['overall_1']" 
+                                            :class="['score-cell', getRagRating(student.cycles[1]?.overall) ? 'rag-' + getRagRating(student.cycles[1]?.overall) : '']">
+                                            {{ student.cycles[1]?.overall || '-' }}
+                                        </td>
+                                        <td v-if="visibleColumns['overall_2']" 
+                                            :class="['score-cell', getRagRating(student.cycles[2]?.overall) ? 'rag-' + getRagRating(student.cycles[2]?.overall) : '']">
+                                            {{ student.cycles[2]?.overall || '-' }}
+                                        </td>
+                                        <td v-if="visibleColumns['overall_3']" 
+                                            :class="['score-cell', getRagRating(student.cycles[3]?.overall) ? 'rag-' + getRagRating(student.cycles[3]?.overall) : '']">
+                                            {{ student.cycles[3]?.overall || '-' }}
+                                        </td>
+                                        <td v-if="visibleColumns['overall_trend']" class="trend-cell">
                                             <span v-if="student.trends.overall === 'up'" class="trend-up">↑</span>
                                             <span v-else-if="student.trends.overall === 'down'" class="trend-down">↓</span>
-                                            <span v-else-if="student.trends.overall === 'same'" class="trend-same">↔</span>
+                                            <span v-else-if="student.trends.overall === 'same'" class="trend-same">→</span>
+                                        </td>
+                                        
+                                        <td class="chart-col">
+                                            <button @click="showStudentChart(student)" class="chart-btn" title="View Progress Chart">
+                                                📈
+                                            </button>
                                         </td>
                                     </tr>
                                 </tbody>
                             </table>
                         </div>
                         
-                        <div v-if="filteredStudents.length === 0" class="srv-no-results">
+                        <div v-if="paginatedStudents.length === 0" class="srv-no-results">
                             <p>No students found matching your criteria.</p>
+                        </div>
+                    </div>
+                    
+                    <!-- Student Chart Modal -->
+                    <div v-if="showChartModal" class="srv-modal" @click.self="showChartModal = false">
+                        <div class="srv-modal-content">
+                            <span class="srv-modal-close" @click="showChartModal = false">&times;</span>
+                            <h3>{{ chartStudent?.name }} - Progress Chart</h3>
+                            <div class="chart-container">
+                                <canvas id="studentChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Group Analytics Modal -->
+                    <div v-if="showGroupAnalytics" class="srv-modal" @click.self="showGroupAnalytics = false">
+                        <div class="srv-modal-content">
+                            <span class="srv-modal-close" @click="showGroupAnalytics = false">&times;</span>
+                            <h3>Group Analytics</h3>
+                            <div class="chart-container">
+                                <canvas id="groupChart"></canvas>
+                            </div>
+                            <div class="analytics-summary">
+                                <p>Total Students: {{ filteredStudents.length }}</p>
+                                <p>Average Scores by Dimension</p>
+                            </div>
                         </div>
                     </div>
                 </div>
