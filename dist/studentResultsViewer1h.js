@@ -1,17 +1,30 @@
 /**
- * Student Results Viewer v2.2.0
+ * Student Results Viewer v2.2.1
  * Enhanced with smart filters and improved layout
  * Copyright 2025 4Sight Education Ltd
  * 
- * NEW FEATURES v2.2.0:
+ * NEW FEATURES v2.2.1:
+ * - Fixed duplicate script loading crash
+ * - Fixed establishment filter operator for connection fields
  * - Fixed table height for better visibility
  * - Consistent VESPA theme colors in charts
  * - Smart filters for conditional searches
  * - All column headers are sortable
  */
 
-// Debug mode flag - SET TO TRUE FOR TROUBLESHOOTING
-const DEBUG_MODE = true;
+// Wrap entire script in IIFE with duplicate load protection
+(function() {
+    'use strict';
+    
+    // Prevent duplicate script loading
+    if (typeof window.STUDENT_RESULTS_VIEWER_LOADED !== 'undefined') {
+        console.log('[Student Results Viewer] Script already loaded, skipping duplicate load');
+        return;
+    }
+    window.STUDENT_RESULTS_VIEWER_LOADED = true;
+
+    // Debug mode flag - SET TO FALSE FOR PRODUCTION
+    const DEBUG_MODE = false;
 
 // Enhanced logging function
 function debugLog(...args) {
@@ -128,8 +141,7 @@ const THEME_CONFIG = {
 window.STUDENT_RESULTS_CONFIG = { FIELD_MAPPINGS, RAG_CONFIG, THEME_CONFIG, getRagRating };
 
 // Main Application
-(function() {
-    'use strict';
+// (Already wrapped in outer IIFE, so we don't need another one here)
 
     // Load Chart.js if not already loaded
     function loadChartJS() {
@@ -161,7 +173,7 @@ window.STUDENT_RESULTS_CONFIG = { FIELD_MAPPINGS, RAG_CONFIG, THEME_CONFIG, getR
     }
 
     window.initializeStudentResultsViewer = function() {
-        console.log('[Student Results Viewer] Initializing v2.2.0...');
+        console.log('[Student Results Viewer] Initializing v2.2.1...');
 
         waitForConfig(async (config) => {
             // Load Chart.js first
@@ -434,9 +446,10 @@ window.STUDENT_RESULTS_CONFIG = { FIELD_MAPPINGS, RAG_CONFIG, THEME_CONFIG, getR
                             if (establishmentId) {
                                 console.log('[Student Results Viewer] Found establishment ID:', establishmentId);
                                 // Apply establishment filter for ALL users
+                                // Use 'contains' operator for connection fields
                                 filters.push({
                                     field: FIELD_MAPPINGS.connections.establishment,
-                                    operator: 'is',
+                                    operator: 'contains',  // Fixed: was 'is', now 'contains' for connection fields
                                     value: establishmentId
                                 });
                             } else {
@@ -1616,4 +1629,5 @@ window.STUDENT_RESULTS_CONFIG = { FIELD_MAPPINGS, RAG_CONFIG, THEME_CONFIG, getR
     if (window.STUDENT_RESULTS_VIEWER_CONFIG) {
         window.initializeStudentResultsViewer();
     }
-})();
+
+})(); // End of main IIFE wrapper
