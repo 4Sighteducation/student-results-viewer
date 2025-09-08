@@ -1,11 +1,12 @@
 /**
- * Student Results Viewer v2.2.1
+ * Student Results Viewer v2.2.2
  * Enhanced with smart filters and improved layout
  * Copyright 2025 4Sight Education Ltd
  * 
- * NEW FEATURES v2.2.1:
+ * NEW FEATURES v2.2.2:
  * - Fixed duplicate script loading crash
  * - Fixed establishment filter operator for connection fields
+ * - Fixed Staff Admin with multiple roles (now correctly shows all students)
  * - Fixed table height for better visibility
  * - Consistent VESPA theme colors in charts
  * - Smart filters for conditional searches
@@ -173,7 +174,7 @@ window.STUDENT_RESULTS_CONFIG = { FIELD_MAPPINGS, RAG_CONFIG, THEME_CONFIG, getR
     }
 
     window.initializeStudentResultsViewer = function() {
-        console.log('[Student Results Viewer] Initializing v2.2.1...');
+        console.log('[Student Results Viewer] Initializing v2.2.2...');
 
         waitForConfig(async (config) => {
             // Load Chart.js first
@@ -466,8 +467,14 @@ window.STUDENT_RESULTS_CONFIG = { FIELD_MAPPINGS, RAG_CONFIG, THEME_CONFIG, getR
                         }
                         
                         // Now add role-specific filters ON TOP of establishment filter
-                        // Skip this for Staff Admin as they see all establishment students
-                        if (!userRoles.value.includes('Staff Admin') || userRoles.value.length > 1) {
+                        // IMPORTANT: Staff Admin sees ALL students, regardless of other roles
+                        // Only apply role filters if user is NOT a Staff Admin
+                        if (userRoles.value.includes('Staff Admin')) {
+                            console.log('[Student Results Viewer] User has Staff Admin role - showing ALL establishment students');
+                            if (userRoles.value.length > 1) {
+                                console.log('[Student Results Viewer] Ignoring other roles:', userRoles.value.filter(r => r !== 'Staff Admin').join(', '));
+                            }
+                        } else {
                             // Get role-specific record IDs
                             const rolePromises = [];
                             
@@ -623,8 +630,8 @@ window.STUDENT_RESULTS_CONFIG = { FIELD_MAPPINGS, RAG_CONFIG, THEME_CONFIG, getR
                                     // Single role filter - add directly
                                     filters.push(roleFilters[0]);
                                 }
-                            } else if (!userRoles.value.includes('Staff Admin')) {
-                                // Non-Staff Admin user with no matching role records found
+                            } else {
+                                // User with no matching role records found
                                 console.warn('[Student Results Viewer] No matching staff records found for user roles');
                             }
                         }
